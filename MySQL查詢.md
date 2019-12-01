@@ -13,10 +13,12 @@
 
 # 查詢行程
 
-### SELECT sta_id,food_id,att_id 
-### FROM dtbse.schedule AS a
+### SELECT CONCAT(sta_name,' ',b.sta_id) as station,food_name,att_name FROM dtbse.schedule AS a
 ### JOIN dtbse.schedule_route AS b ON a.schedule_id = b.schedule_id
 ### LEFT JOIN dtbse.schedule_route_detail AS c ON b.schedule_route_id = c.schedule_route_id
+### JOIN dtbse.station As d on b.sta_id = d.sta_id
+### LEFT JOIN dtbse.food As e on c.food_id = e.food_id
+### LEFT JOIN dtbse.attractions As f on c.att_id = f.att_id
 ### WHERE a.schedule_id = 'S00001'
 ### ORDER BY schedule_route_array,detail_array;
 
@@ -26,8 +28,7 @@
 ### DELETE FROM dtbse.schedule_route_detail
 ### WHERE schedule_route_id IN (SELECT * FROM (SELECT a.schedule_route_id FROM dtbse.schedule_route_detail AS a
 ### JOIN dtbse.schedule_route AS b ON a.schedule_route_id = b.schedule_route_id
-### JOIN dtbse.schedule AS c ON b.schedule_id = b.schedule_id
-### WHERE c.schedule_id = 'S00001') AS d);
+### WHERE schedule_id = 'S00001') AS c);
 
 ### DELETE FROM dtbse.schedule_route
 ### WHERE schedule_id = 'S00001';
