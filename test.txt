@@ -1,8 +1,8 @@
 "use strict";
-const express = require('express');
-const { WebhookClient } = require('dialogflow-fulfillment');
+const express = require('express')
+const { WebhookClient } = require('dialogflow-fulfillment')
 const {Text, Card, Image, Suggestion, Payload} = require('dialogflow-fulfillment'); 
-const app = express();
+const app = express()
 //定義陣列變數區域
 var ss = [];
 var sr = [];
@@ -21,7 +21,7 @@ var finalStationNum = [];
 var finalfaName = [];
 var finalStationLine = [];
 var finalRouteName = [];
-var finalExit = [];
+var finalExit = []
 var lineName = [];
 var foodAttractionsId = [];
 var rank = 0;
@@ -39,7 +39,7 @@ const e = require('express');
 //============================
 app.post('/dialogflow', express.json(), (request, response) => {
     //回覆訊息的代理人
-    const agent = new WebhookClient({request, response});
+    const agent = new WebhookClient({request, response})
 
     //------------------
     // 處理歡迎意圖
@@ -150,7 +150,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                             if (dataA == -9){
                                 agent.add('查詢失敗'); 
                             }else if(dataA.length == 0){
-                                var sId = data[0].schedule_id;
+                                var sId = data[0].schedule_id
                                 return foodattractions.searchFAUsed(sId,userId).then(dataB => {
                                     if (dataB == -9){
                                         agent.add('查詢失敗'); 
@@ -1058,8 +1058,8 @@ app.post('/dialogflow', express.json(), (request, response) => {
     function startschedule(){
         var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
         var ntrans = [['BR','O'],['BR','Y'],['R','Y'],['O','BR'],['Y','BR'],['Y','R']];
-        var tLine1 = ['BL','BL','BL','BL','BL','BL','BL','BR','BR','BR','BR','G','G','G','G','G','G','G','O','O','O','O','O','O','O','R','R','R','R','R','R','Y','Y','Y','Y','Y'];
-        var tLine2 = ['Y','Y','G','R','O','BR','BR','R','BL','G','BL','Y','O','R','BL','R','O','BR','Y','G','R','BL','G','R','Y','BR','O','G','BL','G','O','G','O','BL','BL','O'];
+        var tLine1 = ['BL','BL','BL','BL','BL','BL','BL','BR','BR','BR','BR','G','G','G','G','G','G','G','O','O','O','O','O','O','O','R','R','R','R','R','R','Y','Y','Y','Y','Y']
+        var tLine2 = ['Y','Y','G','R','O','BR','BR','R','BL','G','BL','Y','O','R','BL','R','O','BR','Y','G','R','BL','G','R','Y','BR','O','G','BL','G','O','G','O','BL','BL','O']
         var tSta1 = ['BL07','BL08','BL11','BL12','BL14','BL15','BL23','BR09','BR10','BR11','BR24','G04','G09','G10','G12','G14','G15','G16','O02','O05','O06','O07','O08','O11','O17','R05','R07','R08','R10','R11','R13','Y07','Y11','Y16','Y17','Y18'];
         var tSta2 = ['Y16','Y17','G12','R10','O07','BR10','BR24','R05','BL15','G16','BL23','Y07','O05','R08','BL11','R11','O08','BR11','Y11','G09','R07','BL14','G15','R13','Y18','BR09','O06','G10','BL12','G14','O11','G04','O02','BL07','BL08','O17'];
         var tStaNum1 = [7,8,11,12,14,15,23,9,10,11,24,4,9,10,12,14,15,16,2,5,6,7,8,11,17,5,7,8,10,11,13,7,11,16,17,18];
@@ -1069,13 +1069,13 @@ app.post('/dialogflow', express.json(), (request, response) => {
         var transSta = 36;
         var mrtLine = [['BL','BR','G','O','R','Y'],['板南線','文湖線','松山新店線','中和新蘆線','淡水信義線','環狀線']];
         var transStationRoute = [];
-        var specialtranssta = ['G03A','R22A'];
-        var specialtransfer = ['G03 七張','R22 北投'];
-        var specialtransstaXZ = ['O13','O14','O15','O16','O17','O18','O19','O20','O21'];
-        var specialtransstaLZ = ['O50','O51','O52','O53','O54'];
-        var specialtransRoute = ['小碧潭線','新北投線'];
-        var specialtransTime = [3,5,8,10,13,15,18,20,23];
-        var specialTime = [5,3];
+        var specialtranssta = ['G03A','R22A']
+        var specialtransfer = ['G03 七張','R22 北投']
+        var specialtransstaXZ = ['O13','O14','O15','O16','O17','O18','O19','O20','O21']
+        var specialtransstaLZ = ['O50','O51','O52','O53','O54']
+        var specialtransRoute = ['小碧潭線','新北投線']
+        var specialtransTime = [3,5,8,10,13,15,18,20,23]
+        var specialTime = [5,3]
         var time = [];
         var n = 0;
         var j = 0;
@@ -1172,17 +1172,17 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                     msg +='◎ 在 O12 大橋頭 站下車\n |\n';
                                                                     msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                     msg +='◎ 於 O12 大橋頭 站上車\n |\n';
-                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1;
-                                                                    time[1] = specialtransTime[v];
-                                                                    finalRouteName[i] = '蘆洲線';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1
+                                                                    time[1] = specialtransTime[v]
+                                                                    finalRouteName[i] = '蘆洲線'
                                                                 }else if (finalStationId[i] == specialtransstaLZ[v] & finalStationId[i+1] == specialtransstaXZ[u]){
                                                                     msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
                                                                     msg +='◎ 在 O12 大橋頭 站下車\n |\n';
                                                                     msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                     msg +='◎ 於 O12 大橋頭 站上車\n |\n';
-                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1;
-                                                                    time[1] = specialtransTime[u];
-                                                                    finalRouteName[i] = '新莊線';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1
+                                                                    time[1] = specialtransTime[u]
+                                                                    finalRouteName[i] = '新莊線'
                                                                 }
                                                             }
                                                         }
@@ -1193,7 +1193,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                 msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                 msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
                                                                 msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
-                                                                time[0] += specialTime[t] + 1;
+                                                                time[0] += specialTime[t] + 1
                                                             }
                                                         }
                                                         msg +='◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n';
@@ -1208,14 +1208,15 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                             msg +='◎ 前往 '+ finalfaName[i+1];
                                                         }
                                                         if(i != j && time[0]!= 0){
-                                                            msg = '\n';
+                                                            msg += '\n';
                                                         }
                                                         if(time[0]!=0){
-                                                            msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘';
+                                                            msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
                                                         }
                                                         if(msg != ''){
                                                             agent.add(msg);
                                                         }
+                                                        msg = '';
                                                         if(i == j){
                                                             cs.push({
                                                                 "imageBackgroundColor": "#FFFFFF",
@@ -1340,9 +1341,9 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                             msg +='◎ 在 O12 大橋頭 站下車\n |\n';
                                                                             msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                             msg +='◎ 於 O12 大橋頭 站上車\n |\n';
-                                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3];
-                                                                            time[1] = specialtransTime[u];
-                                                                            finalRouteName[i] = '新莊線';
+                                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                            time[1] = specialtransTime[u]
+                                                                            finalRouteName[i] = '新莊線'
                                                                         }
                                                                     }
                                                                 }
@@ -1384,7 +1385,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                         msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                         msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
                                                                         msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
-                                                                        time[0] += specialTime[t] + 1;
+                                                                        time[0] += specialTime[t] + 1
                                                                     }
                                                                 }
                                                                 msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
@@ -1397,6 +1398,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                             }
                                                             msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
                                                             agent.add(msg);
+                                                            msg = '';
                                                             if(i == j){
                                                                 cs.push({
                                                                     "imageBackgroundColor": "#FFFFFF",
@@ -1542,7 +1544,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                         msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
                                                                         msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                         msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
-                                                                        time[0] += specialTime[t] + 1;
+                                                                        time[0] += specialTime[t] + 1
                                                                     }
                                                                 }
                                                                 msg += '◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n'
@@ -1568,7 +1570,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                         msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                         msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
                                                                         msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
-                                                                        time[0] += specialTime[t] + 1;
+                                                                        time[0] += specialTime[t] + 1
                                                                     }
                                                                 }
                                                                 msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
@@ -1579,6 +1581,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                             }
                                                             msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
                                                             agent.add(msg);
+                                                            msg = '';
                                                             if(i == j){
                                                                 cs.push({
                                                                     "imageBackgroundColor": "#FFFFFF",
@@ -1891,9 +1894,9 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                             msg +='◎ 在 O12 大橋頭 站下車\n |\n';
                                                             msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                             msg +='◎ 於 O12 大橋頭 站上車\n |\n';
-                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1;
-                                                            time[1] = specialtransTime[u];
-                                                            finalRouteName[i] = '新莊線';
+                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1
+                                                            time[1] = specialtransTime[u]
+                                                            finalRouteName[i] = '新莊線'
                                                         }
                                                     }
                                                 }
@@ -1904,7 +1907,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                         msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                         msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
                                                         msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
-                                                        time[0] += specialTime[t] + 1;
+                                                        time[0] += specialTime[t] + 1
                                                     }
                                                 }
                                                 msg +='◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n';
@@ -1919,7 +1922,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                     msg +='◎ 前往 '+ finalfaName[i+1];
                                                 }
                                                 if(i != j && time[0]!= 0){
-                                                    msg = '\n';
+                                                    msg += '\n';
                                                 }
                                                 if(time[0]!=0){
                                                     msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
@@ -1927,6 +1930,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                 if(msg != ''){
                                                     agent.add(msg);
                                                 }
+                                                msg = '';
                                                 rank = 0;
                                             }else{
                                                 for(var q = 0;q < ntrans.length ; q++){
@@ -2019,9 +2023,9 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                     msg +='◎ 在 O12 大橋頭 站下車\n |\n';
                                                                     msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                     msg +='◎ 於 O12 大橋頭 站上車\n |\n';
-                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3];
-                                                                    time[1] = specialtransTime[u];
-                                                                    finalRouteName[i] = '新莊線';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                    time[1] = specialtransTime[u]
+                                                                    finalRouteName[i] = '新莊線'
                                                                 }
                                                             }
                                                         }
@@ -2034,7 +2038,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                         msg += '|\n◎ 轉乘 '+ finalRouteName[i+1] + ' 路線\n   (預估轉乘時間 ' + time[2] + ' 分鐘)\n |\n'
                                                     }
                                                     if(time[3]>0){
-                                                        msg += '◎ 於 '+ transStationId[1] + ' ' + transStationName[0] + ' 站上車\n |\n'
+                                                            msg += '◎ 於 '+ transStationId[1] + ' ' + transStationName[0] + ' 站上車\n |\n'
                                                         for(var u = 0; u < 9; u++){
                                                             for(var v = 0; v < 5 ; v++){
                                                                 if(finalStationId[i+1] == specialtransstaXZ[u] && transStationId[1] == specialtransstaLZ[v]){
@@ -2043,16 +2047,16 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                     msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                     msg +='◎ 於 O12 大橋頭 站上車\n |\n';
                                                                     time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
-                                                                    time[3] = specialtransTime[u];
-                                                                    finalRouteName[i] = '新莊線' ;                                                                   
+                                                                    time[3] = specialtransTime[u]
+                                                                    finalRouteName[i] = '新莊線'                                                                    
                                                                 }else if (finalStationId[i+1] == specialtransstaLZ[v] & transStationId[1] == specialtransstaXZ[u]){
                                                                     msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
                                                                     msg +='◎ 在 O12 大橋頭 站下車\n |\n';
                                                                     msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                     msg +='◎ 於 O12 大橋頭 站上車\n |\n';
                                                                     time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
-                                                                    time[3] = specialtransTime[v];
-                                                                    finalRouteName[i] = '蘆洲線'          ;                                                          
+                                                                    time[3] = specialtransTime[v]
+                                                                    finalRouteName[i] = '蘆洲線'                                                                    
                                                                 }
                                                             }
                                                         }
@@ -2063,7 +2067,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                                 msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
                                                                 msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
                                                                 msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
-                                                                time[0] += specialTime[t] + 1;
+                                                                time[0] += specialTime[t] + 1
                                                             }
                                                         }
                                                         msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
@@ -2076,6 +2080,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                     }
                                                     msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
                                                     agent.add(msg);
+                                                    msg = '';
                                                     rank = 0;
                                                 }else{
                                                     for(var g = 0;g < 6 ;g++){
@@ -2226,6 +2231,7 @@ app.post('/dialogflow', express.json(), (request, response) => {
                                                     }
                                                     msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
                                                     agent.add(msg);
+                                                    msg = '';
                                                     rank = 0;
                                                 }
                                             }  
