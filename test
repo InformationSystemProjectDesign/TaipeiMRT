@@ -1,0 +1,2298 @@
+"use strict";
+const express = require('express');
+const { WebhookClient } = require('dialogflow-fulfillment');
+const {Text, Card, Image, Suggestion, Payload} = require('dialogflow-fulfillment'); 
+const app = express();
+//定義陣列變數區域
+var ss = [];
+var sr = [];
+var srf = [];
+var stationStop = [];
+var stationLine = [];
+var stationNum = [];
+var stationName = [];
+var transStationId = [];
+var transStationName = [];
+var transStationNum = [];
+var transStationTime = [];
+var finalStationId = [];
+var finalStationName = [];
+var finalStationNum = [];
+var finalfaName = [];
+var finalStationLine = [];
+var finalRouteName = [];
+var finalExit = [];
+var lineName = [];
+var foodAttractionsId = [];
+var rank = 0;
+var foodattractionsadd = 0;
+
+//增加引用模組
+const member = require('./utility/member');
+const station = require('./utility/station');
+const foodattractions = require('./utility/foodattractions');
+const schedule = require('./utility/schedule');
+const e = require('express');
+
+//============================
+// 處理各種意圖
+//============================
+app.post('/dialogflow', express.json(), (request, response) => {
+    //回覆訊息的代理人
+    const agent = new WebhookClient({request, response});
+
+    //------------------
+    // 處理歡迎意圖
+    //------------------   
+    function welcome(){
+        //回覆文字
+        agent.add('你好!!');
+    }
+
+    //------------------
+    // 處理加入會員意圖
+    //------------------  
+    function memberJoin(){
+
+        //取得會員的LineID
+        var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
+        //呼叫member模組, 寫入會員資料
+        return member.add(userId,'L').then(data => {  
+            if (data == -9){
+                //回覆文字
+                agent.add('您已經是會員囉~!');
+            }else if(data == 0){   
+                //回覆文字            
+                agent.add('會員已建立!');    
+                agent.add('可填寫[姓名]收到我們的訊息!'); 
+                agent.add('只要用以下格式填寫即可:'); 
+                agent.add('姓名:XXX');                               
+            }else{
+                agent.add('會員處理發生例外問題!');
+            }  
+        });
+    }
+
+    //-----------------------
+    // 處理填寫會員姓名意圖
+    //-----------------------     
+    function fillmemberName(){
+        //取得會員LineID
+        var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
+
+        //取得會員姓名
+        var name = request.body.queryResult.parameters.name;
+
+        //回覆文字
+        agent.add('歡迎您!!'+ name);
+
+        //呼叫member模組, 填入客戶姓名
+        return member.fillName(userId, name).then(data => {  
+            if (data == -9){
+                //回覆文字             
+                agent.add('填寫錯誤!');
+            }else if(data == 0){  
+                //回覆文字  
+                agent.add('尚未加入會員! 可填寫以下加入會員:'); 
+                agent.add('想加入會員');                               
+            }else{
+                //回覆文字              
+                agent.add('您已加入會員!');    
+            }  
+        });
+    }    
+
+
+    //-----------------------  
+    // 處理查看車站意圖
+    //-----------------------      
+    function checkstation(agent){
+        var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
+        var line = request.body.queryResult.parameters.line;
+        var num = request.body.queryResult.parameters.num;
+        var ten = [10,100,1000,10000];
+        return member.searchID(userId).then(memberId => {
+            if (memberId == -9){
+                //回覆文字
+                agent.add('查詢失敗');
+            }else if(memberId == 0){
+                console.log(memberId);
+                agent.add('請先加入會員才能使用排程功能。');
+                var lineMessage = {
+                    "type": "template",
+                    "altText": "點我快速加入會員",
+                    "template": {
+                        "type": "image_carousel",
+                        "columns": [ 
+                            {
+                                "imageUrl": "https://i.imgur.com/HLBLtYN.png",
+                                "action": {
+                                    "type": "message",
+                                    "label": "點我快速加入會員",
+                                    "text": "加入會員"
+                                }
+                            }
+                        ]
+                    }
+                };
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+            }else{
+                console.log(memberId);
+                return schedule.searchSchedule().then(data => {
+                    if (data == -9){
+                        //回覆文字
+                        agent.add('查詢失敗'); 
+                    }else if(data.length == 0){
+                        agent.add('查無資料，請重新輸入');
+                    }else{
+                        return schedule.searchScheduleUsed(userId).then(dataA => {
+                            if (dataA == -9){
+                                agent.add('查詢失敗'); 
+                            }else if(dataA.length == 0){
+                                var sId = data[0].schedule_id;
+                                return foodattractions.searchFAUsed(sId,userId).then(dataB => {
+                                    if (dataB == -9){
+                                        agent.add('查詢失敗'); 
+                                    }else if(dataB.length == 0){
+                                        //從資料庫取得schedule_id及schedule_route_id並加1
+                                        ss[0] = ("" + data[0].schedule_id).toString();
+                                        sr[0] = ("" + data[0].schedule_route_id).toString();
+                                        console.log(ss[0]+' '+sr[0]+' '+data[0].schedule_id+' '+data[0].schedule_route_id)
+                                        var ssint = [];
+                                        for (var i = 1;i <= 1;i++){
+                                            var sds = ss[i-1].substring(2,6);
+                                            ss[i-1] = parseInt(sds);
+                                            ssint[i] = ss[i-1] + 1;
+                                            ss[i] = 'S';
+                                            for(var j = 0; j < 4;j++){
+                                                if(ss[i-1] + 1 < ten[j]){
+                                                    ss[i] += '0';
+                                                }
+                                            }
+                                            ss[i] += ssint[i];
+                                        }
+                                        var srint = [];
+                                        for (var i = 1;i <= 2;i++){
+                                            var rds = sr[i-1].substring(2,6);
+                                            sr[i-1] = parseInt(rds);
+                                            srint[i] = sr[i-1] + 1;
+                                            sr[i] = 'R';
+                                            for(var j = 0; j < 4;j++){
+                                                if(sr[i-1] + 1 < ten[j]){
+                                                    sr[i] += '0';
+                                                }
+                                            }
+                                            sr[i] += srint[i];
+                                            srf[i] = sr[i];
+                                        }
+                                        console.log(ss[1]+' '+srf[1]+' '+srf[2]);
+                                        return schedule.addSchedule(ss[1],userId).then(dataC => { 
+                                            //回覆起點/終點文字
+                                            if (dataC == -9){
+                                                agent.add('加入失敗');
+                                            }else if(dataC == 0){
+                                                return schedule.addScheduleRoute(srf[1],ss[1]).then(dataD => {  
+                                                    if (dataD == -9){
+                                                        agent.add('加入失敗');
+                                                    }else if(dataD == 0){
+                                                        return schedule.addScheduleRoute(srf[2],ss[1]).then(dataE => {  
+                                                            if (dataE == -9){
+                                                                agent.add('加入失敗');
+                                                            }else if(dataE == 0){
+                                                                //選擇起點車站路線
+                                                                agent.add('請選擇起點車站路線');
+                                                                var lineMessage = {
+                                                                    "type": "template",
+                                                                    "altText": "請選擇起點車站路線",
+                                                                    "template": {
+                                                                        "type": "image_carousel",
+                                                                        "columns": [               
+                                                                            {
+                                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Taipei_Metro_Line_BL.svg/800px-Taipei_Metro_Line_BL.svg.png",
+                                                                                "action": {
+                                                                                    "type": "message",
+                                                                                    "label": "板南線",
+                                                                                    "text": "選擇BL路線"
+                                                                                }
+                                                                            }, {
+                                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Taipei_Metro_Line_BR.svg/800px-Taipei_Metro_Line_BR.svg.png",
+                                                                                "action": {
+                                                                                    "type": "message",
+                                                                                    "label": "文湖線",
+                                                                                    "text": "選擇BR路線"
+                                                                                }
+                                                                            }, {
+                                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Taipei_Metro_Line_G.svg/800px-Taipei_Metro_Line_G.svg.png",
+                                                                                "action": {
+                                                                                    "type": "message",
+                                                                                    "label": "松山新店線",
+                                                                                    "text": "選擇G路線"
+                                                                                }
+                                                                            }, {
+                                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Taipei_Metro_Line_O.svg/800px-Taipei_Metro_Line_O.svg.png",
+                                                                                "action": {
+                                                                                    "type": "message",
+                                                                                    "label": "中和新蘆線",
+                                                                                    "text": "選擇O路線"
+                                                                                }
+                                                                            }, {
+                                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Taipei_Metro_Line_R.svg/800px-Taipei_Metro_Line_R.svg.png",
+                                                                                "action": {
+                                                                                    "type": "message",
+                                                                                    "label": "淡水信義線",
+                                                                                    "text": "選擇R路線"
+                                                                                }
+                                                                            }, {
+                                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Taipei_Metro_Line_Y.svg/800px-Taipei_Metro_Line_Y.svg.png",
+                                                                                "action": {
+                                                                                    "type": "message",
+                                                                                    "label": "環狀線",
+                                                                                    "text": "選擇Y路線"
+                                                                                }
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                };
+                                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                                agent.add(payload);
+                                                            }else{
+                                                                agent.add('發生例外問題!');
+                                                            }
+                                                        }); 
+                                                    }else{
+                                                        agent.add('發生例外問題!');
+                                                    }
+                                                }); 
+                                            }else{
+                                                agent.add('發生例外問題!');
+                                            }
+                                        });
+                                    }else{ 
+                                        var lineMessage = {
+                                        "type": "template",
+                                        "altText": "請選擇美食/景點",
+                                        "template": {
+                                            "type": "image_carousel",
+                                            "columns": [               
+                                            {
+                                                "imageUrl": "https://i.imgur.com/W14fL2i.jpg",
+                                                "action": {
+                                                    "type": "message",
+                                                    "label": "搜尋美食",
+                                                    "text": "搜尋美食"
+                                                }
+                                            }, {
+                                                "imageUrl": "https://i.imgur.com/hffsy2P.jpg",
+                                                "action": {
+                                                    "type": "message",
+                                                    "label": "搜尋景點",
+                                                    "text": "搜尋景點"
+                                                }
+                                            }, {
+                                                "imageUrl": "https://i.imgur.com/GEu5M36.jpg",
+                                                "action": {
+                                                    "type": "message",
+                                                    "label": "開始排程",
+                                                    "text": "結束，開始排程~"
+                                                }
+                                            }
+                                        ]}
+                                    };
+                                    //選擇美食/景點或直接進行排程
+                                    agent.add('請選擇美食/景點!!');
+                                    var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                    agent.add(payload);
+                                    }
+                                })
+                            }else{
+                                return schedule.searchScheduleId(userId).then(dataB => {
+                                    if (dataB == -9){
+                                        agent.add('查詢失敗'); 
+                                    }else{
+                                        if(dataA.length == 2){
+                                            stationLine[0] = line;
+                                            stationNum[0] = num;
+                                            stationStop[0] = line + num;
+                                            var srId = dataB[1].schedule_route_id
+                                            var returnMsg = "請選擇終點車站路線"
+                                            if(stationStop[0] == ""){
+                                                returnMsg = "請選擇起點車站路線"
+                                            }
+                                            var lineMessage = {
+                                                "type": "template",
+                                                "altText": returnMsg,
+                                                "template": {
+                                                    "type": "image_carousel",
+                                                    "columns": [               
+                                                        {
+                                                            "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Taipei_Metro_Line_BL.svg/800px-Taipei_Metro_Line_BL.svg.png",
+                                                            "action": {
+                                                                "type": "message",
+                                                                "label": "板南線",
+                                                                "text": "選擇BL路線"
+                                                            }
+                                                        }, {
+                                                            "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Taipei_Metro_Line_BR.svg/800px-Taipei_Metro_Line_BR.svg.png",
+                                                            "action": {
+                                                                "type": "message",
+                                                                "label": "文湖線",
+                                                                "text": "選擇BR路線"
+                                                            }
+                                                        }, {
+                                                            "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Taipei_Metro_Line_G.svg/800px-Taipei_Metro_Line_G.svg.png",
+                                                            "action": {
+                                                                "type": "message",
+                                                                "label": "松山新店線",
+                                                                "text": "選擇G路線"
+                                                            }
+                                                        }, {
+                                                            "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Taipei_Metro_Line_O.svg/800px-Taipei_Metro_Line_O.svg.png",
+                                                            "action": {
+                                                                "type": "message",
+                                                                "label": "中和新蘆線",
+                                                                "text": "選擇O路線"
+                                                            }
+                                                        }, {
+                                                            "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Taipei_Metro_Line_R.svg/800px-Taipei_Metro_Line_R.svg.png",
+                                                            "action": {
+                                                                "type": "message",
+                                                                "label": "淡水信義線",
+                                                                "text": "選擇R路線"
+                                                            }
+                                                        }, {
+                                                            "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Taipei_Metro_Line_Y.svg/800px-Taipei_Metro_Line_Y.svg.png",
+                                                            "action": {
+                                                                "type": "message",
+                                                                "label": "環狀線",
+                                                                "text": "選擇Y路線"
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            };
+                                            if(stationStop[0] == ""){
+                                                agent.add('請重新選擇起點車站路線');
+                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                agent.add(payload);
+                                            }else{                                 
+                                                //選擇終點車站路線
+                                                agent.add('請選擇終點車站路線');
+                                                return schedule.updateScheduleRoute(srId,1,stationStop[0]).then(data => { 
+                                                    //回覆文字
+                                                    if (data == -9){
+                                                        agent.add('加入失敗');
+                                                    }else if(data == 0){
+                                                        return station.searchStationName(stationStop[0]).then(data => {
+                                                            if (data == -9){
+                                                                agent.add('查詢失敗'); 
+                                                            }else if(data.length == 0){
+                                                                agent.add('查無資料，請重新輸入');
+                                                            }else{ 
+                                                                stationName[0] = data[0].sta_name;
+                                                                lineName[0] = data[0].route_name;
+                                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                                agent.add(payload);
+                                                            }
+                                                        })
+                                                    }else{
+                                                        agent.add('發生例外問題!');
+                                                    }
+                                                }); 
+                                            }
+                                        }else{
+                                            stationLine[1] = line;
+                                            stationNum[1] = num;
+                                            stationStop[1] = line + num;
+                                            var srId = dataB[0].schedule_route_id
+                                            if(stationStop[1] == ""){
+                                                agent.add('請重新選擇終點車站路線!!');
+                                                var lineMessage = {
+                                                    "type": "template",
+                                                    "altText": "請選擇終點車站路線",
+                                                    "template": {
+                                                        "type": "image_carousel",
+                                                        "columns": [               
+                                                            {
+                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Taipei_Metro_Line_BL.svg/800px-Taipei_Metro_Line_BL.svg.png",
+                                                                "action": {
+                                                                    "type": "message",
+                                                                    "label": "板南線",
+                                                                    "text": "選擇BL路線"
+                                                                }
+                                                            }, {
+                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Taipei_Metro_Line_BR.svg/800px-Taipei_Metro_Line_BR.svg.png",
+                                                                "action": {
+                                                                    "type": "message",
+                                                                    "label": "文湖線",
+                                                                    "text": "選擇BR路線"
+                                                                }
+                                                            }, {
+                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Taipei_Metro_Line_G.svg/800px-Taipei_Metro_Line_G.svg.png",
+                                                                "action": {
+                                                                    "type": "message",
+                                                                    "label": "松山新店線",
+                                                                    "text": "選擇G路線"
+                                                                }
+                                                            }, {
+                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Taipei_Metro_Line_O.svg/800px-Taipei_Metro_Line_O.svg.png",
+                                                                "action": {
+                                                                    "type": "message",
+                                                                    "label": "中和新蘆線",
+                                                                    "text": "選擇O路線"
+                                                                }
+                                                            }, {
+                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Taipei_Metro_Line_R.svg/800px-Taipei_Metro_Line_R.svg.png",
+                                                                "action": {
+                                                                    "type": "message",
+                                                                    "label": "淡水信義線",
+                                                                    "text": "選擇R路線"
+                                                                }
+                                                            }, {
+                                                                "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Taipei_Metro_Line_Y.svg/800px-Taipei_Metro_Line_Y.svg.png",
+                                                                "action": {
+                                                                    "type": "message",
+                                                                    "label": "環狀線",
+                                                                    "text": "選擇Y路線"
+                                                                }
+                                                            }
+                                                        ]
+                                                    }
+                                                };
+                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                agent.add(payload);
+                                                //rank = 1;
+                                            }else{
+                                                return schedule.updateScheduleRoute(srId,2,stationStop[1]).then(data => {  
+                                                    if (data == -9){
+                                                        //回覆文字
+                                                        agent.add('加入失敗');
+                                                    }else if(data == 0){
+                                                        //選擇美食景點樣板
+                                                        var lineMessage = {
+                                                            "type": "template",
+                                                            "altText": "請選擇美食/景點",
+                                                            "template": {
+                                                                "type": "image_carousel",
+                                                                "columns": [               
+                                                                {
+                                                                    "imageUrl": "https://i.imgur.com/W14fL2i.jpg",
+                                                                    "action": {
+                                                                        "type": "message",
+                                                                        "label": "搜尋美食",
+                                                                        "text": "搜尋美食"
+                                                                    }
+                                                                }, {
+                                                                    "imageUrl": "https://i.imgur.com/hffsy2P.jpg",
+                                                                    "action": {
+                                                                        "type": "message",
+                                                                        "label": "搜尋景點",
+                                                                        "text": "搜尋景點"
+                                                                    }
+                                                                }, {
+                                                                    "imageUrl": "https://i.imgur.com/GEu5M36.jpg",
+                                                                    "action": {
+                                                                        "type": "message",
+                                                                        "label": "開始排程",
+                                                                        "text": "結束，開始排程~"
+                                                                    }
+                                                                }
+                                                            ]}
+                                                        };
+                                                        agent.add('請選擇美食/景點!!');
+                                                        return station.searchStationName(stationStop[1]).then(data => {
+                                                            if (data == -9){
+                                                                agent.add('查詢失敗');
+                                                            }else if(data.length == 0){
+                                                                agent.add('查無資料，請重新輸入');
+                                                            }else{ 
+                                                                stationName[1] = data[0].sta_name;
+                                                                lineName[1] = data[0].route_name;
+                                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                                agent.add(payload); 
+                                                            }
+                                                        })
+                                                    }else{
+                                                        agent.add('發生例外問題!');
+                                                    }
+                                                }); 
+                                            }
+                                        }
+                                    }
+                                })      
+                            }
+                        }) 
+                    }
+                })
+            }
+        })
+    }
+
+    function listAStationCategory(){
+        //取得分類
+        var category = request.body.queryResult.parameters.category;
+        //回覆文字
+        agent.add('查看的路線是：' + category);
+        //呼叫station模組, 取出分類
+        return station.listAStationCategory(category).then(data => {
+            if (data == -9){
+                //回覆文字            
+                agent.add('取得資料失敗'); 
+            }else if(data.length == 0){
+                //回覆文字
+                agent.add('目前沒有內容!');
+            }else { 
+                var cs = []
+                var mod = data.length % 3;
+                var done = data.length;
+                //回覆圖文選單 
+                for(var i=0; i<(data.length/3)-1; i++){
+                    cs.push({
+                        "imageBackgroundColor": "#FFFFFF",
+                        "title": data[i*3].sta_id+ "~" + data[i*3+2].sta_id,
+                        "text": "請選擇車站",
+                        "actions": [{
+                            "type": "message",
+                            "label": data[i*3].sta_name,
+                            "text": "選擇車站為 " + data[i*3].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": data[i*3+1].sta_name,
+                            "text": "選擇車站為 " + data[i*3+1].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": data[i*3+2].sta_name,
+                            "text": "選擇車站為 " + data[i*3+2].sta_id
+                        }]
+                    })                    
+                }   
+
+                if (mod == 0){
+                    cs.push({
+                        "imageBackgroundColor": "#FFFFFF",
+                        "title": data[done-3].sta_id+ "~" + data[done-1].sta_id,
+                        "text": "請選擇車站",
+                        "actions": [{
+                            "type": "message",
+                            "label": data[done-3].sta_name,
+                            "text": "選擇車站為 " + data[done-3].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": data[done-2].sta_name,
+                            "text": "選擇車站為 " + data[done-2].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": data[done-1].sta_name,
+                            "text": "選擇車站為 " + data[done-1].sta_id
+                        }]
+                    })                    
+                }else if(mod == 2){
+                    cs.push({
+                        "imageBackgroundColor": "#FFFFFF",
+                        "title": data[done-2].sta_id+ "~" + data[done-1].sta_id,
+                        "text": "請選擇車站",
+                        "actions": [
+                        {
+                            "type": "message",
+                            "label": data[done-2].sta_name,
+                            "text": "選擇車站為 " + data[done-2].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": data[done-1].sta_name,
+                            "text": "選擇車站為 " + data[done-1].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": "-----",
+                            "text": "查無車站"
+                        }]
+                    })     
+                }else{
+                    cs.push({
+                        "imageBackgroundColor": "#FFFFFF",
+                        "title": data[done-1].sta_id,
+                        "text": "請選擇車站",
+                        "actions": [
+                        {
+                            "type": "message",
+                            "label": data[done-1].sta_name,
+                            "text": "選擇車站為 " + data[done-1].sta_id
+                        },
+                        {
+                            "type": "message",
+                            "label": "-----",
+                            "text": "查無車站"
+                        },
+                        {
+                            "type": "message",
+                            "label": "-----",
+                            "text": "查無車站"
+                        }]
+                    })   
+                }
+
+                var lineMessage = {
+                    "type": "template",
+                    "altText": "請選擇" + category + "路線車站",
+                    "template": {
+                        "type": "carousel",
+                        "columns":cs,
+                        "imageAspectRatio": "square",
+                        "imageSize": "cover"
+                    }
+                };
+  
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+                if(rank == 0){
+                    rank = 1;
+                }else if(rank == 1){
+                    rank = 2;
+                }
+            }
+        });    
+    }    
+
+    function checkfoodattractions(){
+        //取得分類
+        var type = request.body.queryResult.parameters.type;
+        //回覆文字
+        agent.add('查看的是：' + type);
+        agent.add('請輸入欲查詢的' + type + '名稱');
+        agent.add('查詢格式：' + type + ' XXX');
+        agent.add('或是選擇以下推薦行程：');
+        if( type == '美食' ){
+            return foodattractions.listAFoodRecommand().then(data => {
+                //回覆文字
+                if (data == -9){
+                    agent.add('查詢失敗');
+                }else if(data.length == 0){
+                    agent.add('目前無推薦美食');
+                }else{
+                    var cs = []
+                    for(var i = 0;i<data.length;i++){
+                        cs.push({
+                            "thumbnailImageUrl": data[i].food_pic,
+                            "imageBackgroundColor": "#FFFFFF",
+                            "title": data[i].food_name + ' 美食',
+                            "text": data[i].food_name,
+                            "actions": [
+                                {
+                                    "type": "message",
+                                    "label": "新增",
+                                    "text": "新增 " + data[i].food_id + ' ' + data[i].food_name + " 美食"
+                                },{
+                                    "type": "message",
+                                    "label": "詳細資訊",
+                                    "text": data[i].food_id + ' ' + data[i].food_name + " 美食 資訊"
+                                }
+                            ]
+                        })       
+                    }
+                }
+                var lineMessage = {
+                    "type": "template",
+                    "altText": "以下為推薦美食",
+                    "template": {
+                        "type": "carousel",
+                        "columns":cs,
+                        "imageAspectRatio": "square",
+                        "imageSize": "cover"
+                    }
+                };
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+            })
+        }else{
+            return foodattractions.listAAttractionsRecommand().then(data => {
+                //回覆文字
+                if (data == -9){
+                    agent.add('查詢失敗'); 
+                }else if(data.length == 0){
+                    agent.add('目前無推薦景點');
+                }else{ 
+                    var cs = []
+                    for(var i = 0;i<data.length;i++){
+                        cs.push({
+                            "thumbnailImageUrl": data[i].att_pic,
+                            "imageBackgroundColor": "#FFFFFF",
+                            "title": data[i].att_name + ' 景點',
+                            "text": data[i].att_name,
+                            "actions": [
+                                {
+                                    "type": "message",
+                                    "label": "新增",
+                                    "text": "新增 " + data[i].att_id + ' ' + data[i].att_name + " 景點"
+                                },
+                                {
+                                    "type": "message",
+                                    "label": "詳細資訊",
+                                    "text": data[i].att_id + ' ' + data[i].att_name + " 景點 資訊"
+                                }
+                            ]
+                        }) 
+                    }
+                }
+                var lineMessage = {
+                    "type": "template",
+                    "altText": "以下為推薦景點",
+                    "template": {
+                        "type": "carousel",
+                        "columns":cs,
+                        "imageAspectRatio": "square",
+                        "imageSize": "cover"
+                    }
+                };
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+            })
+        }
+    }  
+
+    function listAFoodAttractionsCategory(){
+        //取得分類
+        var type = request.body.queryResult.parameters.type;
+        var fa = request.body.queryResult.parameters.fa;
+        var fa1 = '%' + fa + '%';
+        fa = fa1;
+        //回覆文字
+        agent.add('查詢' + type + '結果如下：');
+        if( type == '美食' ){
+            return foodattractions.listAFoodCategory(fa).then(data => {
+                //回覆文字
+                if (data == -9){
+                    agent.add('查詢失敗'); 
+                }else if(data.length == 0){
+                    agent.add('查無資料，請重新輸入'); 
+                }else{
+                    console.log(data.length);
+                    var cs = []
+                    for(var b = 0;b<data.length;b++){
+                        cs.push({
+                            "thumbnailImageUrl": data[0].food_pic,
+                            "imageBackgroundColor": "#FFFFFF",
+                            "title": data[0].food_name + ' 美食',
+                            "text": data[0].food_name,
+                            "actions": [
+                                {
+                                    "type": "message",
+                                    "label": "新增",
+                                    "text": "新增 " + data[0].food_id + ' ' + data[0].food_name + " 美食"
+                                },{
+                                    "type": "message",
+                                    "label": "詳細資訊",
+                                    "text": data[0].food_id + ' ' + data[0].food_name + " 美食 資訊"
+                                }
+                            ]
+                        })  
+                    }
+                    var lineMessage = {
+                        "type": "template",
+                        "altText": "景點：" + data[0].food_name,
+                        "template": {
+                            "type": "carousel",
+                            "columns":cs,
+                            "imageAspectRatio": "square",
+                            "imageSize": "cover"
+                        }
+                    };
+                    var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                    agent.add(payload);
+                }
+            })
+        }else{
+            return foodattractions.listAAttractionsCategory(fa).then(data => {
+                //回覆文字
+                if (data == -9){
+                    agent.add('查詢失敗'); 
+                }else if(data.length == 0){
+                    agent.add('查無資料，請重新輸入');
+                }else{ 
+                    console.log(data.length);
+                    var cs = []
+                    for(var b = 0;b<data.length;b++){
+                        cs.push({
+                            "thumbnailImageUrl": data[b].att_pic,
+                            "imageBackgroundColor": "#FFFFFF",
+                            "title": data[b].att_name + ' 景點',
+                            "text": data[b].att_name,
+                            "actions": [
+                                {
+                                    "type": "message",
+                                    "label": "新增",
+                                    "text": "新增 " + data[b].att_id + ' ' + data[b].att_name + " 景點"
+                                },
+                                {
+                                    "type": "message",
+                                    "label": "詳細資訊",
+                                    "text": data[b].att_id + ' ' + data[b].att_name + " 景點 資訊"
+                                }
+                            ]
+                        }) 
+                    } 
+                    var lineMessage = {
+                        "type": "template",
+                        "altText": "景點：" + data[0].att_name,
+                        "template": {
+                            "type": "carousel",
+                            "columns":cs,
+                            "imageAspectRatio": "square",
+                            "imageSize": "cover"
+                        }
+                    };
+                    var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                    agent.add(payload);
+                }
+            })
+        }
+    }
+
+    function listFoodAttractionsDetails(){
+        //取得分類
+        var type = request.body.queryResult.parameters.type;
+        var fa = request.body.queryResult.parameters.fa;
+
+        //回覆文字
+        agent.add('查詢' + type + '結果如下：');
+        if( type == '景點' ){
+            return foodattractions.listAttractionsDetails(fa).then(data => {
+                if (data == -9){
+                    //回覆文字
+                    agent.add('查詢失敗');
+                }else if(data.length == 0){
+                    agent.add('查無資料，請重新輸入'); 
+                }else{ 
+                    var m = '景點名稱：' + data[0].att_name + '\n\n車站出口：\n捷運' + data[0].sta_name + '站' + data[0].exit_name + '號出口\n\n';
+                    if(data[0].att_price == 'Y'){
+                        m += '景點收費：要收費'
+                    }else{
+                        m += '景點收費：不收費'
+                    }
+                    m += '\n\n景點介紹：\n' + data[0].att_description + '\n\n官方網站：' + data[0].att_net
+                    agent.add(m);
+                    var cs = []
+                    cs.push({
+                        "thumbnailImageUrl": data[0].att_pic,
+                        "imageBackgroundColor": "#FFFFFF",
+                        "title": data[0].att_name + ' 景點',
+                        "text": data[0].att_name,
+                        "actions": [
+                            {
+                                "type": "message",
+                                "label": "新增",
+                                "text": "新增 " + data[0].att_id + ' ' + data[0].att_name + " 景點"
+                            }
+                        ]
+                    }) 
+                }
+                var lineMessage = {
+                    "type": "template",
+                    "altText":"景點：" + data[0].att_name,
+                    "template": {
+                        "type": "carousel",
+                        "columns":cs,
+                        "imageAspectRatio": "square",
+                        "imageSize": "cover"
+                    }
+                };
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+            })
+        }else{
+            return foodattractions.listFoodDetails(fa).then(data => {
+                if (data == -9){
+                    //回覆文字
+                    agent.add('查詢失敗'); 
+                }else if(data.length == 0){
+                    agent.add('查無資料，請重新輸入'); 
+                }else{
+                    var m = '美食名稱：' + data[0].food_name + '\n\n車站出口：\n捷運' + data[0].sta_name + '站' + data[0].exit_name + '號出口\n\n美食地址：' + data[0].food_address + '\n\n美食電話：' + data[0].food_phone + '\n\n';
+                    if(data[0].food_price == 'H'){
+                        m += '美食價位：高價格'
+                    }else if(data[0].food_price == 'M'){
+                        m += '美食價位：中價格'
+                    }else{
+                        m += '美食價位：低價格'
+                    }
+                    m += '\n\n美食介紹：\n' + data[0].food_description
+                    agent.add(m);
+                    var cs = []
+                    cs.push({
+                        "thumbnailImageUrl": data[0].food_pic,
+                        "imageBackgroundColor": "#FFFFFF",
+                        "title": data[0].food_name + ' 美食',
+                        "text": data[0].food_name,
+                        "actions": [
+                            {
+                                "type": "message",
+                                "label": "新增",
+                                "text": "新增 " + data[0].food_id + ' ' + data[0].food_name + " 美食"
+                            }
+                        ]
+                    })       
+                }
+                var lineMessage = {
+                    "type": "template",
+                    "altText": "美食：" + data[0].food_name,
+                    "template": {
+                        "type": "carousel",
+                        "columns":cs,
+                        "imageAspectRatio": "square",
+                        "imageSize": "cover"
+                    }
+                };
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+            })
+        }
+    }
+
+    
+    function addfoodattractions(){
+        //取得分類
+        var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
+        var id = request.body.queryResult.parameters.id;
+        var type = request.body.queryResult.parameters.type;
+        var food_id;
+        var att_id;
+        foodAttractionsId[foodattractionsadd] = id;
+        return schedule.searchScheduleId(userId).then(data => {
+            if (data == -9){
+                agent.add('查詢失敗'); 
+            }else if(data.length == 0){
+                agent.add('查無資料，請重新輸入');
+            }else{ 
+                var sId = data[0].schedule_id
+                if(type == '景點'){
+                    att_id = id
+                    return schedule.addScheduleRouteDetailsAtt(sId,rank - 1,att_id,'A').then(data => {  
+                        if (data == -9){
+                            //回覆文字
+                            agent.add('加入失敗');
+                        }else if(data == 0){
+                            agent.add('新增成功');
+                            agent.add('是否繼續新增美食/景點？');
+                            var cs = []
+                            cs.push({
+                                "imageBackgroundColor": "#FFFFFF",
+                                "title": '是否繼續新增美食/景點？',
+                                "text": '請選擇',
+                                "actions": [{
+                                    "type": "message",
+                                    "label": "是",
+                                    "text": "我要繼續新增"
+                                },{
+                                    "type": "message",
+                                    "label": "否",
+                                    "text": "結束，開始排程~"
+                                }]
+                            })   
+                            var lineMessage = {
+                                "type": "template",
+                                "altText": "是否繼續新增美食/景點？",
+                                "template": {
+                                    "type": "carousel",
+                                    "columns":cs,
+                                    "imageAspectRatio": "square",
+                                    "imageSize": "cover"
+                                }
+                            };
+                            rank = 3;
+                            var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                            agent.add(payload);
+                        }else{
+                            agent.add('發生例外問題!');
+                        }
+                    });
+                }else{
+                    food_id = id
+                    return schedule.addScheduleRouteDetailsFood(sId,rank - 1,food_id,'F').then(data => {  
+                        if (data == -9){
+                            //回覆文字
+                            agent.add('加入失敗');
+                        }else if(data == 0){
+                            agent.add('新增成功');
+                            agent.add('是否繼續新增美食/景點？');
+                            var cs = []
+                            cs.push({
+                                "imageBackgroundColor": "#FFFFFF",
+                                "title": '是否繼續新增美食/景點？',
+                                "text": '請選擇',
+                                "actions": [{
+                                    "type": "message",
+                                    "label": "是",
+                                    "text": "我要繼續新增"
+                                },{
+                                    "type": "message",
+                                    "label": "否",
+                                    "text": "結束，開始排程~"
+                                }]
+                            })   
+                            var lineMessage = {
+                                "type": "template",
+                                "altText": "是否繼續新增美食/景點？",
+                                "template": {
+                                    "type": "carousel",
+                                    "columns":cs,
+                                    "imageAspectRatio": "square",
+                                    "imageSize": "cover"
+                                }
+                            };
+                            rank = 3;
+                            var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                            agent.add(payload);
+                        }else{
+                            agent.add('發生例外問題!');
+                        }
+                    });
+                }
+            }
+        })
+    } 
+
+    function startschedule(){
+        var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
+        var ntrans = [['BR','O'],['BR','Y'],['R','Y'],['O','BR'],['Y','BR'],['Y','R']];
+        var tLine1 = ['BL','BL','BL','BL','BL','BL','BL','BR','BR','BR','BR','G','G','G','G','G','G','G','O','O','O','O','O','O','O','R','R','R','R','R','R','Y','Y','Y','Y','Y'];
+        var tLine2 = ['Y','Y','G','R','O','BR','BR','R','BL','G','BL','Y','O','R','BL','R','O','BR','Y','G','R','BL','G','R','Y','BR','O','G','BL','G','O','G','O','BL','BL','O'];
+        var tSta1 = ['BL07','BL08','BL11','BL12','BL14','BL15','BL23','BR09','BR10','BR11','BR24','G04','G09','G10','G12','G14','G15','G16','O02','O05','O06','O07','O08','O11','O17','R05','R07','R08','R10','R11','R13','Y07','Y11','Y16','Y17','Y18'];
+        var tSta2 = ['Y16','Y17','G12','R10','O07','BR10','BR24','R05','BL15','G16','BL23','Y07','O05','R08','BL11','R11','O08','BR11','Y11','G09','R07','BL14','G15','R13','Y18','BR09','O06','G10','BL12','G14','O11','G04','O02','BL07','BL08','O17'];
+        var tStaNum1 = [7,8,11,12,14,15,23,9,10,11,24,4,9,10,12,14,15,16,2,5,6,7,8,11,17,5,7,8,10,11,13,7,11,16,17,18];
+        var tStaNum2 = [16,17,12,10,7,10,24,5,15,16,23,7,5,8,11,11,8,11,11,9,7,14,15,13,18,9,6,10,12,14,11,4,2,7,8,17];
+        var transTime = [15,15,1,3,2,4,4,4,4,5,4,3,1,1,1,2,2,5,6,1,1,2,2,2,4,4,1,1,3,2,2,3,6,15,15,4];
+        var tStaName = ['板橋','新埔','西門','台北車站','忠孝新生','忠孝復興','南港展覽館','大安','忠孝復興','南京復興','南港展覽館','大坪林','古亭','中正紀念堂','西門','中山','松江南京','南京復興','景安','古亭','東門','忠孝新生','松江南京','民權西路','頭前庄','大安','東門','中正紀念堂','台北車站','中山','民權西路','大坪林','景安','板橋','新埔民生','頭前庄'];
+        var transSta = 36;
+        var mrtLine = [['BL','BR','G','O','R','Y'],['板南線','文湖線','松山新店線','中和新蘆線','淡水信義線','環狀線']];
+        var transStationRoute = [];
+        var specialtranssta = ['G03A','R22A'];
+        var specialtransfer = ['G03 七張','R22 北投'];
+        var specialtransstaXZ = ['O13','O14','O15','O16','O17','O18','O19','O20','O21'];
+        var specialtransstaLZ = ['O50','O51','O52','O53','O54'];
+        var specialtransRoute = ['小碧潭線','新北投線'];
+        var specialtransTime = [3,5,8,10,13,15,18,20,23];
+        var specialTime = [5,3];
+        var time = [];
+        var n = 0;
+        var j = 0;
+        var a0 = 0;
+        var f0 = 0;
+        var items = 0;
+        var a = 0;
+        var msg = '';
+        var cs = [];
+        return schedule.searchScheduleId(userId).then(data => {
+            if (data == -9){
+                agent.add('查詢失敗'); 
+            }else if(data.length == 0){
+                agent.add('查無資料，請重新輸入');
+            }else{ 
+                var sId = data[0].schedule_id;
+                return schedule.scheduleInfo(sId).then(dataA => {
+                    //回覆文字
+                    if (dataA == -9){
+                        agent.add('查詢失敗');
+                    }else if(dataA.length == 0){
+                        agent.add('查無資料，請重新輸入');
+                    }else{ 
+                        return schedule.scheduleDetailsFoodInfo(sId).then(dataB => {
+                            if (dataB == -9){
+                                agent.add('查詢失敗');
+                            }else{ 
+                                return schedule.scheduleDetailsAttInfo(sId).then(dataC => {
+                                    if (dataC == -9){
+                                        agent.add('查詢失敗');
+                                    }else{ 
+                                        return schedule.scheduleDetailsArray(sId).then(dataD => {
+                                            if (dataD == -9){
+                                                agent.add('查詢失敗'); 
+                                            }else{ 
+                                                finalStationId[0] = dataA[0].sta_id;
+                                                finalStationName[0] = dataA[0].sta_name;
+                                                finalStationLine[0] = dataA[0].route_id;
+                                                finalStationNum[0] = dataA[0].sta_num;
+                                                finalRouteName[0] = dataA[0].route_name;
+                                                for(var i = 1; i < dataD.length + 1;i++){
+                                                    if(dataD[i-1].detail_type == 'F'){
+                                                        finalStationId[i] = dataB[f0].sta_id;
+                                                        finalStationName[i] = dataB[f0].sta_name;
+                                                        finalStationLine[i] = dataB[f0].route_id;
+                                                        finalRouteName[i] = dataB[f0].route_name;
+                                                        finalStationNum[i] = dataB[f0].sta_num;
+                                                        finalfaName[i] = dataB[f0].food_name;
+                                                        finalExit[i] = dataB[f0].exit_name;
+                                                        f0 += 1
+                                                    }else{
+                                                        finalStationId[i] = dataC[a0].sta_id;
+                                                        finalStationName[i] = dataC[a0].sta_name;
+                                                        finalStationLine[i] = dataC[a0].route_id;
+                                                        finalRouteName[i] = dataC[a0].route_name;
+                                                        finalStationNum[i] = dataC[a0].sta_num;
+                                                        finalfaName[i] = dataC[a0].att_name;
+                                                        finalExit[i] = dataC[a0].exit_name;
+                                                        a0 += 1
+                                                    }
+                                                    j = i;
+                                                }
+                                                finalStationId[j+1] = dataA[1].sta_id;
+                                                finalStationName[j+1] = dataA[1].sta_name;
+                                                finalStationLine[j+1] = dataA[1].route_id;
+                                                finalStationNum[j+1] = dataA[1].sta_num;
+                                                finalRouteName[j+1] = dataA[1].route_name;
+                                                items = j + 1;
+                                                agent.add('排程結果如下：');
+                                                for(var i = 0; i < j+1 ; i++){
+                                                    time[0] = 0;
+                                                    if(finalStationLine[i] == finalStationLine[i+1]){
+                                                        if(parseInt(finalStationNum[i]) < parseInt(finalStationNum[i+1])){
+                                                            time[1] = Math.round((parseInt(finalStationNum[i+1])-parseInt(finalStationNum[i])) * 2.5);
+                                                        }else{
+                                                            time[1] = Math.round((parseInt(finalStationNum[i])-parseInt(finalStationNum[i+1])) * 2.5);
+                                                        }
+                                                        time[0] = time[1];
+                                                        a = 0;
+                                                        msg = '◎ 於 '+ finalStationId[i] + ' ' + finalStationName[i] + ' 站上車\n |\n';
+                                                        for(var t=0;t<2;t++){
+                                                            if(finalStationId[i] == specialtranssta[t]){
+                                                                msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                time[0] += specialTime[t] + 1
+                                                            }
+                                                        }
+                                                        for(var u = 0 ; u < 9 ; u++ ){
+                                                            for(var v = 0 ; v < 5 ; v++ ){
+                                                                if(finalStationId[i] == specialtransstaXZ[u] && finalStationId[i+1] == specialtransstaLZ[v]){
+                                                                    msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
+                                                                    msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                    msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                    msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1;
+                                                                    time[1] = specialtransTime[v];
+                                                                    finalRouteName[i] = '蘆洲線';
+                                                                }else if (finalStationId[i] == specialtransstaLZ[v] & finalStationId[i+1] == specialtransstaXZ[u]){
+                                                                    msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
+                                                                    msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                    msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                    msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1;
+                                                                    time[1] = specialtransTime[u];
+                                                                    finalRouteName[i] = '新莊線';
+                                                                }
+                                                            }
+                                                        }
+                                                        msg +='◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n';
+                                                        for(var t=0;t<2;t++){
+                                                            if(finalStationId[i+1] == specialtranssta[t]){
+                                                                msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                time[0] += specialTime[t] + 1;
+                                                            }
+                                                        }
+                                                        msg +='◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n';
+                                                        if(i != j){
+                                                            msg += ' |\n';
+                                                        }
+                                                        if(time[0]==0){
+                                                            msg = '';
+                                                        }
+                                                        if(i != j){
+                                                            msg +='◎ 於捷運' + finalStationName[i+1] + '站' + finalExit[i+1] + '號出口出站\n |\n';
+                                                            msg +='◎ 前往 '+ finalfaName[i+1];
+                                                        }
+                                                        if(i != j && time[0]!= 0){
+                                                            msg = '\n';
+                                                        }
+                                                        if(time[0]!=0){
+                                                            msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘';
+                                                        }
+                                                        if(msg != ''){
+                                                            agent.add(msg);
+                                                        }
+                                                        if(i == j){
+                                                            cs.push({
+                                                                "imageBackgroundColor": "#FFFFFF",
+                                                                "title": '是否儲存此排程？',
+                                                                "text": '請選擇',
+                                                                "actions": [{
+                                                                    "type": "message",
+                                                                    "label": "是，我要儲存",
+                                                                    "text": "我要儲存行程"
+                                                                },{
+                                                                    "type": "message",
+                                                                    "label": "否，我要開始新的排程",
+                                                                    "text": "進行排程"
+                                                                },{
+                                                                    "type": "message",
+                                                                    "label": "否，直接結束",
+                                                                    "text": "關閉"
+                                                                }]
+                                                            })   
+                                                            var lineMessage = {
+                                                                "type": "template",
+                                                                "altText": "是否儲存此排程？",
+                                                                "template": {
+                                                                    "type": "carousel",
+                                                                    "columns":cs,
+                                                                    "imageAspectRatio": "square",
+                                                                    "imageSize": "cover"
+                                                                }
+                                                            };
+                                                            var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                            agent.add(payload);
+                                                        }
+                                                        rank = 0;
+                                                    }else{
+                                                        for(var q = 0;q < ntrans.length ; q++){
+                                                            if(finalStationLine[i]==ntrans[q][0] && finalStationLine[i+1]==ntrans[q][1]){
+                                                                n = 1;
+                                                                break;
+                                                            }else{
+                                                                n = 0;
+                                                            }
+                                                        }
+                                                        if(n == 0){
+                                                            for(var k = 0; k < tStaName.length; k++){
+                                                                if(finalStationLine[i] == tLine1[k] && finalStationLine[i+1] == tLine2[k]){
+                                                                    transStationId[0] = tSta1[k];
+                                                                    transStationId[1] = tSta2[k];
+                                                                    transStationNum[0] = tStaNum1[k];
+                                                                    transStationNum[1] = tStaNum2[k];
+                                                                    transStationTime[0] = transTime[k];
+                                                                    transStationName[0] = tStaName[k];
+                                                                    k = transSta;
+                                                                }
+                                                            }
+                                                            for(var k = 1; k <= tStaName.length; k++){
+                                                                if(finalStationLine[i] == tLine1[tStaName.length-k] && finalStationLine[i+1] == tLine2[tStaName.length-k]){
+                                                                    transStationId[2] = tSta1[tStaName.length-k];
+                                                                    transStationId[3] = tSta2[tStaName.length-k];
+                                                                    transStationNum[2] = tStaNum1[tStaName.length-k];
+                                                                    transStationNum[3] = tStaNum2[tStaName.length-k];
+                                                                    transStationTime[1] = transTime[tStaName.length-k];
+                                                                    transStationName[1] = tStaName[tStaName.length-k];
+                                                                    k = transSta;
+                                                                }
+                                                            }
+                                                            for(var g = 0;g < 2;g++){
+                                                                if(parseInt(finalStationNum[i]) < transStationNum[g*2]){
+                                                                    time[g*4+1] = Math.round((transStationNum[g*2] - parseInt(finalStationNum[i])) * 2.5)
+                                                                }else{
+                                                                    time[g*4+1] = Math.round((parseInt(finalStationNum[i]) - transStationNum[g*2]) * 2.5)
+                                                                }
+                                                                time[g*4+2] = transStationTime[g]
+                                                                if(transStationNum[g*2+1] < parseInt(finalStationNum[i+1])){
+                                                                    time[g*4+3] = Math.round((parseInt(finalStationNum[i+1]) - transStationNum[g*2+1]) * 2.5)
+                                                                }else{
+                                                                    time[g*4+3] = Math.round((transStationNum[g*2+1] - parseInt(finalStationNum[i+1])) * 2.5)
+                                                                }
+                                                                console.log(time[g*4+1] + ' ' + time[g*4+2] + ' '+ time[g*4+3]+ ' ' + time[g*4+1]+time[g*4+2]+time[g*4+3])
+                                                            }
+                                                            time[4] = 0;
+                                                            for (var r = 1; r <= 3; r++){
+                                                                time[0] += time[r];
+                                                                time[4] += time[r+4];
+                                                                console.log(time[0]+' '+time[4]);
+                                                            }
+                                                            if(time[0] > time[4]){
+                                                                transStationId[0] = transStationId[2];
+                                                                transStationId[1] = transStationId[3];
+                                                                transStationNum[0] = transStationNum[2];
+                                                                transStationNum[1] = transStationNum[3];
+                                                                transStationTime[0] = transStationTime[1];
+                                                                transStationName[0] = transStationName[1];
+                                                                time[0] = time[4];
+                                                                for(var d = 1;d <= 3;d++){
+                                                                    time[d] = time[d+4];
+                                                                }
+                                                            }
+                                                            a = 0;
+                                                            if(time[1] > 0){
+                                                                msg = '◎ 於 '+ finalStationId[i] + ' ' + finalStationName[i] + ' 站上車\n |\n';
+                                                                for(var t=0;t<2;t++){
+                                                                    if(finalStationId[i] == specialtranssta[t]){
+                                                                        msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                        msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                        msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                        msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                        time[0] += specialTime[t] + 1
+                                                                    }
+                                                                }
+                                                                for(var u = 0; u < 9; u++){
+                                                                    for(var v = 0; v < 5 ; v++){
+                                                                        if(finalStationId[i] == specialtransstaXZ[u] && transStationId[0] == specialtransstaLZ[v]){
+                                                                            msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
+                                                                            msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                            msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                            msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                            time[1] = specialtransTime[v]
+                                                                            finalRouteName[i] = '蘆洲線'
+                                                                        }else if (finalStationId[i] == specialtransstaLZ[v] & transStationId[0] == specialtransstaXZ[u]){
+                                                                            msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
+                                                                            msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                            msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                            msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3];
+                                                                            time[1] = specialtransTime[u];
+                                                                            finalRouteName[i] = '新莊線';
+                                                                        }
+                                                                    }
+                                                                }
+                                                                msg += '◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n'
+                                                                msg += '◎ 在 '+ transStationId[0] + ' ' + transStationName[0] + ' 站下車\n '
+                                                            }else{
+                                                                time[0] = time[3]
+                                                            }
+                                                            if(time[1]>0 && time[3]>0){
+                                                                msg += '|\n◎ 轉乘 '+ finalRouteName[i+1] + ' 路線\n   (預估轉乘時間 ' + time[2] + ' 分鐘)\n |\n'
+                                                            }
+                                                            if(time[3]>0){
+                                                                msg += '◎ 於 '+ transStationId[1] + ' ' + transStationName[0] + ' 站上車\n |\n'
+                                                                for(var u = 0; u < 9; u++){
+                                                                    for(var v = 0; v < 5 ; v++){
+                                                                        if(finalStationId[i+1] == specialtransstaXZ[u] && transStationId[1] == specialtransstaLZ[v]){
+                                                                            msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
+                                                                            msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                            msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                            msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                            time[3] = specialtransTime[u]
+                                                                            finalRouteName[i] = '新莊線'                                                                    
+                                                                        }else if (finalStationId[i+1] == specialtransstaLZ[v] & transStationId[1] == specialtransstaXZ[u]){
+                                                                            msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
+                                                                            msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                            msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                            msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                            time[3] = specialtransTime[v]
+                                                                            finalRouteName[i] = '蘆洲線'                                                                    
+                                                                        }
+                                                                    }
+                                                                }
+                                                                msg += '◎ 搭乘 ' + finalRouteName[i+1] + ' 路線\n   (預估搭乘時間 ' + time[3] + ' 分鐘)\n |\n'
+                                                                for(var t=0;t<2;t++){
+                                                                    if(finalStationId[i+1] == specialtranssta[t]){
+                                                                        msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                        msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                        msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                        msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                        time[0] += specialTime[t] + 1;
+                                                                    }
+                                                                }
+                                                                msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
+                                                            }else{
+                                                                time[0] = time[1]
+                                                            }
+                                                            if(i != j){
+                                                                msg += ' |\n◎ 於捷運' + finalStationName[i+1] + '站' + finalExit[i+1] + '號出口出站\n |\n';
+                                                                msg += '◎ 前往 '+ finalfaName[i+1]+'\n';
+                                                            }
+                                                            msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
+                                                            agent.add(msg);
+                                                            if(i == j){
+                                                                cs.push({
+                                                                    "imageBackgroundColor": "#FFFFFF",
+                                                                    "title": '是否儲存此排程？',
+                                                                    "text": '請選擇',
+                                                                    "actions": [{
+                                                                        "type": "message",
+                                                                        "label": "是，我要儲存",
+                                                                        "text": "我要儲存行程"
+                                                                    },{
+                                                                        "type": "message",
+                                                                        "label": "否，我要開始新的排程",
+                                                                        "text": "進行排程"
+                                                                    },{
+                                                                        "type": "message",
+                                                                        "label": "否，直接結束",
+                                                                        "text": "關閉"
+                                                                    }]
+                                                                })   
+                                                                var lineMessage = {
+                                                                    "type": "template",
+                                                                    "altText": "是否儲存此排程？",
+                                                                    "template": {
+                                                                        "type": "carousel",
+                                                                        "columns":cs,
+                                                                        "imageAspectRatio": "square",
+                                                                        "imageSize": "cover"
+                                                                    }
+                                                                };
+                                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                                agent.add(payload);    
+                                                            }
+                                                            rank = 0;
+                                                        }else{
+                                                            for(var g = 0;g < 6 ;g++){
+                                                                var t = g * 2;
+                                                                var f = g * 4;
+                                                                var s = g * 6;
+                                                                var e = g * 8;
+                                                                for(var k = 0; k < tStaName.length; k++){
+                                                                    if(finalStationLine[i] == tLine1[k] && mrtLine[0][g] == tLine2[k]){
+                                                                        transStationId[e] = tSta1[k];
+                                                                        transStationId[e+1] = tSta2[k];
+                                                                        transStationNum[e] = tStaNum1[k];
+                                                                        transStationNum[e+1] = tStaNum2[k];
+                                                                        transStationTime[f] = transTime[k];
+                                                                        transStationName[f] = tStaName[k];
+                                                                        transStationRoute[t] = mrtLine[1][g];
+                                                                        k = transSta;
+                                                                    }
+                                                                }
+                                                                for(var k = 0; k < tStaName.length; k++){
+                                                                    if(mrtLine[0][g] == tLine1[k] && finalStationLine[i+1] == tLine2[k]){
+                                                                        transStationId[e+2] = tSta1[k];
+                                                                        transStationId[e+3] = tSta2[k];
+                                                                        transStationNum[e+2] = tStaNum1[k];
+                                                                        transStationNum[e+3] = tStaNum2[k];
+                                                                        transStationTime[f+1] = transTime[k];
+                                                                        transStationName[f+1] = tStaName[k];
+                                                                        k = transSta;
+                                                                    }
+                                                                }
+                                                                for(var k = 1; k <= tStaName.length; k++){
+                                                                    if(finalStationLine[i] == tLine1[tStaName.length-k] && mrtLine[0][g] == tLine2[tStaName.length-k]){
+                                                                        transStationId[e+4] = tSta1[tStaName.length-k];
+                                                                        transStationId[e+5] = tSta2[tStaName.length-k];
+                                                                        transStationNum[e+4] = tStaNum1[tStaName.length-k];
+                                                                        transStationNum[e+5] = tStaNum2[tStaName.length-k];
+                                                                        transStationTime[f+2] = transTime[tStaName.length-k];
+                                                                        transStationName[f+2] = tStaName[tStaName.length-k];
+                                                                        transStationRoute[t+1] = mrtLine[1][g];
+                                                                        k = transSta;
+                                                                    }
+                                                                }
+                                                                for(var k = 1; k <= tStaName.length; k++){
+                                                                    if(mrtLine[0][g] == tLine1[tStaName.length-k] && finalStationLine[i+1] == tLine2[tStaName.length-k]){
+                                                                        transStationId[e+6] = tSta1[tStaName.length-k];
+                                                                        transStationId[e+7] = tSta2[tStaName.length-k];
+                                                                        transStationNum[e+6] = tStaNum1[tStaName.length-k];
+                                                                        transStationNum[e+7] = tStaNum2[tStaName.length-k];
+                                                                        transStationTime[f+3] = transTime[tStaName.length-k];
+                                                                        transStationName[f+3] = tStaName[tStaName.length-k];
+                                                                        k = transSta;
+                                                                    }
+                                                                }
+                                                                for(var w = 0 ; w < 2;w++){
+                                                                    var m = w * 2;
+                                                                    var p = w * 4;
+                                                                    var q = w * 6;
+                                                                    for(var h = 0;h<=5;h++){
+                                                                        time[s*2+q+h] = 0;
+                                                                    }
+                                                                    if(parseInt(finalStationNum[i]) < transStationNum[e+p]){
+                                                                        time[s*2+q+1] = Math.round((transStationNum[e+p] - parseInt(finalStationNum[i])) * 2.5)
+                                                                    }else{
+                                                                        time[s*2+q+1] = Math.round((parseInt(finalStationNum[i]) - transStationNum[e+p]) * 2.5)
+                                                                    }
+                                                                    time[s*2+q+2] = transStationTime[f+m];
+                                                                    if(transStationNum[e+p+1] < transStationNum[e+p+2]){
+                                                                        time[s*2+q+3] = Math.round((transStationNum[e+p+2] - transStationNum[e+p+1]) * 2.5)
+                                                                    }else{
+                                                                        time[s*2+q+3] = Math.round((transStationNum[e+p+1] - transStationNum[e+p+2]) * 2.5)
+                                                                    }
+                                                                    time[s*2+q+4] = transStationTime[f+m+1];
+                                                                    if(transStationNum[e+p+3] < parseInt(finalStationNum[i+1])){
+                                                                        time[s*2+q+5] = Math.round((parseInt(finalStationNum[i+1]) - transStationNum[e+p+3]) * 2.5)
+                                                                    }else{
+                                                                        time[s*2+q+5] = Math.round((transStationNum[e+p+3] - parseInt(finalStationNum[i+1])) * 2.5)
+                                                                    }
+                                                                    for (var r = 1; r <= 5; r++){
+                                                                        time[s*2+q+0] += time[s*2+q+r];
+                                                                    }
+                                                                }
+                                                            }
+                                                            for(var g = 1;g < 12;g++){
+                                                                var p = g * 4;
+                                                                var q = g * 2;
+                                                                if(time[0] > time[g*6]){
+                                                                    transStationId[0] = transStationId[p+0];
+                                                                    transStationId[1] = transStationId[p+1];
+                                                                    transStationId[2] = transStationId[p+0];
+                                                                    transStationId[3] = transStationId[p+1];
+                                                                    transStationNum[0] = transStationNum[p+0];
+                                                                    transStationNum[1] = transStationNum[p+1];
+                                                                    transStationNum[2] = transStationNum[p+2];
+                                                                    transStationNum[3] = transStationNum[p+3];
+                                                                    transStationTime[0] = transStationTime[q+0];
+                                                                    transStationTime[1] = transStationTime[q+1];
+                                                                    transStationName[0] = transStationName[q+0];
+                                                                    transStationName[1] = transStationName[q+1];
+                                                                    transStationRoute[0] = transStationRoute[g];
+                                                                    for(var r = 0;r<6;r++){
+                                                                        time[r] = time[g*6 + r];
+                                                                    }
+                                                                }
+                                                            }
+                                                            a = 0;
+                                                            if(time[1] > 0){
+                                                                msg = '◎ 於 '+ finalStationId[i] + ' ' + finalStationName[i] + ' 站上車\n |\n'
+                                                                for(var t=0;t<2;t++){
+                                                                    if(finalStationId[i] == specialtranssta[t]){
+                                                                        msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                        msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                        msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                        msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                        time[0] += specialTime[t] + 1;
+                                                                    }
+                                                                }
+                                                                msg += '◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n'
+                                                                msg += '◎ 在 '+ transStationId[0] + ' ' + transStationName[0] + ' 站下車\n'
+                                                            }
+                                                            if(time[1] > 0 && time[3] > 0){
+                                                                msg += ' |\n◎ 轉乘 ' + transStationRoute[0] + ' 路線\n   (預估轉乘時間 ' + time[2] + ' 分鐘)\n |\n'
+                                                            }
+                                                            if(time[3]>0){
+                                                                msg += '◎ 於 '+ transStationId[1] + ' ' + transStationName[0] + ' 站上車\n |\n'
+                                                                msg += '◎ 搭乘 ' + transStationRoute[0] + ' 路線\n   (預估搭乘時間 ' + time[3] + ' 分鐘)\n |\n'
+                                                                msg += '◎ 在 ' + transStationId[2] + ' ' + transStationName[1] + ' 站下車\n'
+                                                            }
+                                                            if(time[3]>0 && time[5]>0){
+                                                                msg += '|\n◎ 轉乘 ' + finalRouteName[i+1] + ' 路線\n   (預估轉乘時間 ' + time[4] + ' 分鐘)\n |\n'
+                                                            }
+                                                            if(time[5]>0){
+                                                                msg += '◎ 於 '+ transStationId[3] + ' ' + transStationName[1] + ' 站上車\n |\n'
+                                                                msg += '◎ 搭乘 ' + finalRouteName[i+1] + ' 路線\n   (預估搭乘時間 ' + time[5] + ' 分鐘)\n |\n'
+                                                                for(var t=0;t<2;t++){
+                                                                    if(finalStationId[i+1] == specialtranssta[t]){
+                                                                        msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                        msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                        msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                        msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                        time[0] += specialTime[t] + 1;
+                                                                    }
+                                                                }
+                                                                msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
+                                                            }
+                                                            if(i != j){
+                                                                msg += ' |\n◎ 於捷運' + finalStationName[i+1] + '站' + finalExit[i+1] + '號出口出站\n |\n';
+                                                                msg += '◎ 前往 '+ finalfaName[i+1]+'\n';
+                                                            }
+                                                            msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
+                                                            agent.add(msg);
+                                                            if(i == j){
+                                                                cs.push({
+                                                                    "imageBackgroundColor": "#FFFFFF",
+                                                                    "title": '是否儲存此排程？',
+                                                                    "text": '請選擇',
+                                                                    "actions": [{
+                                                                        "type": "message",
+                                                                        "label": "是，我要儲存",
+                                                                        "text": "我要儲存行程"
+                                                                    },{
+                                                                        "type": "message",
+                                                                        "label": "否，我要開始新的排程",
+                                                                        "text": "進行排程"
+                                                                    },{
+                                                                        "type": "message",
+                                                                        "label": "否，直接結束",
+                                                                        "text": "關閉"
+                                                                    }]
+                                                                })
+                                                                var lineMessage = {
+                                                                    "type": "template",
+                                                                    "altText": "是否儲存此排程？",
+                                                                    "template": {
+                                                                        "type": "carousel",
+                                                                        "columns":cs,
+                                                                        "imageAspectRatio": "square",
+                                                                        "imageSize": "cover"
+                                                                    }
+                                                                };
+                                                                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                                                                agent.add(payload);    
+                                                            }
+                                                            rank = 0;
+                                                        }
+                                                    }  
+                                                }
+                                                rank = 0;
+                                                foodattractionsadd = 0;
+                                                var Day = new Date();
+                                                var Today = Day.getFullYear() + '-'+ (Day.getMonth()+1) + '-'+ Day.getDate()
+                                                console.log(Today);
+                                                return schedule.updateScheduleDate(Today,sId).then(data => {
+                                                    if (data == -9){
+                                                        //回覆文字
+                                                        agent.add('查詢失敗');
+                                                    }else if(data.length == 0){
+                                                        agent.add('查無資料，請重新輸入');
+                                                    }else{ 
+                                                        console.log('新增成功');
+                                                    }
+                                                })
+                                            }
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                    }
+                })
+            }
+        })
+    } 
+
+    function saveschedule(){
+        var userId = request.body.originalDetectIntentRequest.payload.data.source.userId;
+        return schedule.searchScheduleId(userId).then(data => {
+            if (data == -9){
+                agent.add('查詢失敗'); 
+            }else if(data.length == 0){
+                agent.add('查無資料，請重新輸入');
+            }else{
+                var sId = data[0].schedule_id;
+                return station.searchScheduleStationName(sId).then(dataA => {
+                    if (dataA == -9){
+                        //回覆文字
+                        agent.add('查詢失敗');
+                    }else if(dataA.length == 0){
+                        agent.add('查無資料，請重新輸入');
+                    }else{
+                        var saveStationName = dataA[1].sta_name + ' → ' + dataA[0].sta_name;
+                        return schedule.updateSchedule(saveStationName,sId).then(dataB => {
+                            if (dataB == -9){
+                                //回覆文字
+                                agent.add('查詢失敗');
+                            }else if(dataB.length == 0){
+                                agent.add('查無資料，請重新輸入');
+                            }else{
+                                agent.add('新增成功');
+                            }
+                        })
+                    }
+                })
+            }
+        })
+    } 
+
+    function searchsavedschedule(){
+        //取得分類
+        var id = request.body.originalDetectIntentRequest.payload.data.source.userId;
+        //回覆文字
+        return member.searchID(id).then(memberId => {
+            if (memberId == -9){
+                //回覆文字
+                agent.add('查詢失敗');
+            }else if(memberId == 0){
+                console.log(memberId);
+                agent.add('請先加入會員才能使用已存排程功能。');
+                var lineMessage = {
+                    "type": "template",
+                    "altText": "點我快速加入會員",
+                    "template": {
+                        "type": "image_carousel",
+                        "columns": [ 
+                            {
+                                "imageUrl": "https://i.imgur.com/HLBLtYN.png",
+                                "action": {
+                                    "type": "message",
+                                    "label": "點我快速加入會員",
+                                    "text": "加入會員"
+                                }
+                            }
+                        ]
+                    }
+                };
+                var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                agent.add(payload);
+            }else{
+                return schedule.searchScheduleById(id).then(data => {
+                    if (data == -9){
+                        agent.add('查詢失敗');
+                    }else if(data.length == 0){
+                        agent.add('您尚未有排程資料');
+                        var lineMessage = {
+                            "type": "template",
+                            "altText": "點我進行排程",
+                            "template": {
+                                "type": "image_carousel",
+                                "columns": [ 
+                                    {
+                                        "imageUrl": "https://i.imgur.com/d9o9ZP7.png",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "點我進行排程",
+                                            "text": "進行排程"
+                                        }
+                                    }
+                                ]
+                            }
+                        };
+                        var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                        agent.add(payload);
+                    }else{ 
+                        var saveScheduleItem = data.length;
+                        if(data.length > 10){
+                            saveScheduleItem = 10;
+                        }
+                        agent.add('以下為您最近進行的' + saveScheduleItem + '項排程：');
+                        var cs = [];
+                        //回覆圖文選單 
+                        for(var i = 0; i<saveScheduleItem; i++){
+                            cs.push({
+                                "imageBackgroundColor": "#FFFFFF",
+                                "title": data[i].schedule_name,
+                                "text": '日期：' + data[i].schedule_time,
+                                "actions": [{
+                                    "type": "message",
+                                    "label": '選擇排程',
+                                    "text": "選擇行程編號為 " + data[i].schedule_id
+                                },
+                                {
+                                    "type": "message",
+                                    "label": '刪除排程',
+                                    "text": "刪除行程編號為 " + data[i].schedule_id
+                                }]
+                            })                 
+                        }  
+                        var lineMessage = {
+                            "type": "template",
+                            "altText": "以下為您最近進行的" + saveScheduleItem + "項排程",
+                            "template": {
+                                "type": "carousel",
+                                "columns":cs,
+                                "imageAspectRatio": "square",
+                                "imageSize": "cover"
+                            }
+                        };
+                        var payload = new Payload('LINE', lineMessage, {sendAsMessage: true});
+                        agent.add(payload);  
+                    }
+                })
+            }
+        })
+    }  
+
+    function scheduledetail(){
+        var sId = request.body.queryResult.parameters.sId;
+        var ntrans = [['BR','O'],['BR','Y'],['R','Y'],['O','BR'],['Y','BR'],['Y','R']];
+        var tLine1 = ['BL','BL','BL','BL','BL','BL','BL','BR','BR','BR','BR','G','G','G','G','G','G','G','O','O','O','O','O','O','O','R','R','R','R','R','R','Y','Y','Y','Y','Y']
+        var tLine2 = ['Y','Y','G','R','O','BR','BR','R','BL','G','BL','Y','O','R','BL','R','O','BR','Y','G','R','BL','G','R','Y','BR','O','G','BL','G','O','G','O','BL','BL','O']
+        var tSta1 = ['BL07','BL08','BL11','BL12','BL14','BL15','BL23','BR09','BR10','BR11','BR24','G04','G09','G10','G12','G14','G15','G16','O02','O05','O06','O07','O08','O11','O17','R05','R07','R08','R10','R11','R13','Y07','Y11','Y16','Y17','Y18'];
+        var tSta2 = ['Y16','Y17','G12','R10','O07','BR10','BR24','R05','BL15','G16','BL23','Y07','O05','R08','BL11','R11','O08','BR11','Y11','G09','R07','BL14','G15','R13','Y18','BR09','O06','G10','BL12','G14','O11','G04','O02','BL07','BL08','O17'];
+        var tStaNum1 = [7,8,11,12,14,15,23,9,10,11,24,4,9,10,12,14,15,16,2,5,6,7,8,11,17,5,7,8,10,11,13,7,11,16,17,18];
+        var tStaNum2 = [16,17,12,10,7,10,24,5,15,16,23,7,5,8,11,11,8,11,11,9,7,14,15,13,18,9,6,10,12,14,11,4,2,7,8,17];
+        var transTime = [15,15,1,3,2,4,4,4,4,5,4,3,1,1,1,2,2,5,6,1,1,2,2,2,4,4,1,1,3,2,2,3,6,15,15,4];
+        var tStaName = ['板橋','新埔','西門','台北車站','忠孝新生','忠孝復興','南港展覽館','大安','忠孝復興','南京復興','南港展覽館','大坪林','古亭','中正紀念堂','西門','中山','松江南京','南京復興','景安','古亭','東門','忠孝新生','松江南京','民權西路','頭前庄','大安','東門','中正紀念堂','台北車站','中山','民權西路','大坪林','景安','板橋','新埔民生','頭前庄'];
+        var transSta = 36;
+        var mrtLine = [['BL','BR','G','O','R','Y'],['板南線','文湖線','松山新店線','中和新蘆線','淡水信義線','環狀線']];
+        var transStationRoute = [];
+        var specialtranssta = ['G03A','R22A']
+        var specialtransfer = ['G03 七張','R22 北投']
+        var specialtransstaXZ = ['O13','O14','O15','O16','O17','O18','O19','O20','O21']
+        var specialtransstaLZ = ['O50','O51','O52','O53','O54']
+        var specialtransRoute = ['小碧潭線','新北投線']
+        var specialtransTime = [3,5,8,10,13,15,18,20,23]
+        var specialTime = [5,3]
+        var time = [];
+        var n = 0;
+        var j = 0;
+        var a0 = 0;
+        var f0 = 0;
+        var items = 0;
+        var a = 0;
+        var msg = '';
+        var cs = [];
+        return schedule.scheduleInfo(sId).then(dataA => {
+            //回覆文字
+            if (dataA == -9){
+                agent.add('查詢失敗');
+            }else if(dataA.length == 0){
+                agent.add('查無資料，請重新輸入1');
+            }else{ 
+                return schedule.scheduleDetailsFoodInfo(sId).then(dataB => {
+                    if (dataB == -9){
+                        agent.add('查詢失敗');
+                    }else{ 
+                        return schedule.scheduleDetailsAttInfo(sId).then(dataC => {
+                            if (dataC == -9){
+                                agent.add('查詢失敗');
+                            }else{ 
+                                return schedule.scheduleDetailsArray(sId).then(dataD => {
+                                    if (dataD == -9){
+                                        agent.add('查詢失敗'); 
+                                    }else{ 
+                                        finalStationId[0] = dataA[0].sta_id;
+                                        finalStationName[0] = dataA[0].sta_name;
+                                        finalStationLine[0] = dataA[0].route_id;
+                                        finalStationNum[0] = dataA[0].sta_num;
+                                        finalRouteName[0] = dataA[0].route_name;
+                                        for(var i = 1; i < dataD.length + 1;i++){
+                                            if(dataD[i-1].detail_type == 'F'){
+                                                finalStationId[i] = dataB[f0].sta_id;
+                                                finalStationName[i] = dataB[f0].sta_name;
+                                                finalStationLine[i] = dataB[f0].route_id;
+                                                finalRouteName[i] = dataB[f0].route_name;
+                                                finalStationNum[i] = dataB[f0].sta_num;
+                                                finalfaName[i] = dataB[f0].food_name;
+                                                finalExit[i] = dataB[f0].exit_name;
+                                                f0 += 1
+                                            }else{
+                                                finalStationId[i] = dataC[a0].sta_id;
+                                                finalStationName[i] = dataC[a0].sta_name;
+                                                finalStationLine[i] = dataC[a0].route_id;
+                                                finalRouteName[i] = dataC[a0].route_name;
+                                                finalStationNum[i] = dataC[a0].sta_num;
+                                                finalfaName[i] = dataC[a0].att_name;
+                                                finalExit[i] = dataC[a0].exit_name;
+                                                a0 += 1
+                                            }
+                                            j = i;
+                                        }
+                                        finalStationId[j+1] = dataA[1].sta_id;
+                                        finalStationName[j+1] = dataA[1].sta_name;
+                                        finalStationLine[j+1] = dataA[1].route_id;
+                                        finalStationNum[j+1] = dataA[1].sta_num;
+                                        finalRouteName[j+1] = dataA[1].route_name;
+                                        items = j + 1;
+                                        agent.add('排程結果如下：');
+                                        for(var i = 0; i < j+1 ; i++){
+                                            time[0] = 0;
+                                            if(finalStationLine[i] == finalStationLine[i+1]){
+                                                if(parseInt(finalStationNum[i]) < parseInt(finalStationNum[i+1])){
+                                                    time[1] = Math.round((parseInt(finalStationNum[i+1])-parseInt(finalStationNum[i])) * 2.5);
+                                                }else{
+                                                    time[1] = Math.round((parseInt(finalStationNum[i])-parseInt(finalStationNum[i+1])) * 2.5);
+                                                }
+                                                time[0] = time[1];
+                                                a = 0;
+                                                msg = '◎ 於 '+ finalStationId[i] + ' ' + finalStationName[i] + ' 站上車\n |\n';
+                                                for(var t=0;t<2;t++){
+                                                    if(finalStationId[i] == specialtranssta[t]){
+                                                        msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                        msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                        msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                        msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                        time[0] += specialTime[t] + 1
+                                                    }
+                                                }
+                                                for(var u = 0 ; u < 9 ; u++ ){
+                                                    for(var v = 0 ; v < 5 ; v++ ){
+                                                        if(finalStationId[i] == specialtransstaXZ[u] && finalStationId[i+1] == specialtransstaLZ[v]){
+                                                            msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
+                                                            msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                            msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                            msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1
+                                                            time[1] = specialtransTime[v]
+                                                            finalRouteName[i] = '蘆洲線'
+                                                        }else if (finalStationId[i] == specialtransstaLZ[v] & finalStationId[i+1] == specialtransstaXZ[u]){
+                                                            msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
+                                                            msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                            msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                            msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                            time[0] = specialtransTime[u] + specialtransTime[v] + 1;
+                                                            time[1] = specialtransTime[u];
+                                                            finalRouteName[i] = '新莊線';
+                                                        }
+                                                    }
+                                                }
+                                                msg +='◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n';
+                                                for(var t=0;t<2;t++){
+                                                    if(finalStationId[i+1] == specialtranssta[t]){
+                                                        msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                        msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                        msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                        msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                        time[0] += specialTime[t] + 1;
+                                                    }
+                                                }
+                                                msg +='◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n';
+                                                if(i != j){
+                                                    msg += ' |\n';
+                                                }
+                                                if(time[0]==0){
+                                                    msg = '';
+                                                }
+                                                if(i != j){
+                                                    msg +='◎ 於捷運' + finalStationName[i+1] + '站' + finalExit[i+1] + '號出口出站\n |\n';
+                                                    msg +='◎ 前往 '+ finalfaName[i+1];
+                                                }
+                                                if(i != j && time[0]!= 0){
+                                                    msg = '\n';
+                                                }
+                                                if(time[0]!=0){
+                                                    msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
+                                                }
+                                                if(msg != ''){
+                                                    agent.add(msg);
+                                                }
+                                                rank = 0;
+                                            }else{
+                                                for(var q = 0;q < ntrans.length ; q++){
+                                                    if(finalStationLine[i]==ntrans[q][0] && finalStationLine[i+1]==ntrans[q][1]){
+                                                        n = 1;
+                                                        break;
+                                                    }else{
+                                                        n = 0;
+                                                    }
+                                                }
+                                                if(n == 0){
+                                                    for(var k = 0; k < tStaName.length; k++){
+                                                        if(finalStationLine[i] == tLine1[k] && finalStationLine[i+1] == tLine2[k]){
+                                                            transStationId[0] = tSta1[k];
+                                                            transStationId[1] = tSta2[k];
+                                                            transStationNum[0] = tStaNum1[k];
+                                                            transStationNum[1] = tStaNum2[k];
+                                                            transStationTime[0] = transTime[k];
+                                                            transStationName[0] = tStaName[k];
+                                                            k = transSta;
+                                                        }
+                                                    }
+                                                    for(var k = 1; k <= tStaName.length; k++){
+                                                        if(finalStationLine[i] == tLine1[tStaName.length-k] && finalStationLine[i+1] == tLine2[tStaName.length-k]){
+                                                            transStationId[2] = tSta1[tStaName.length-k];
+                                                            transStationId[3] = tSta2[tStaName.length-k];
+                                                            transStationNum[2] = tStaNum1[tStaName.length-k];
+                                                            transStationNum[3] = tStaNum2[tStaName.length-k];
+                                                            transStationTime[1] = transTime[tStaName.length-k];
+                                                            transStationName[1] = tStaName[tStaName.length-k];
+                                                            k = transSta;
+                                                        }
+                                                    }
+                                                    for(var g = 0;g < 2;g++){
+                                                        if(parseInt(finalStationNum[i]) < transStationNum[g*2]){
+                                                            time[g*4+1] = Math.round((transStationNum[g*2] - parseInt(finalStationNum[i])) * 2.5)
+                                                        }else{
+                                                            time[g*4+1] = Math.round((parseInt(finalStationNum[i]) - transStationNum[g*2]) * 2.5)
+                                                        }
+                                                        time[g*4+2] = transStationTime[g]
+                                                        if(transStationNum[g*2+1] < parseInt(finalStationNum[i+1])){
+                                                            time[g*4+3] = Math.round((parseInt(finalStationNum[i+1]) - transStationNum[g*2+1]) * 2.5)
+                                                        }else{
+                                                            time[g*4+3] = Math.round((transStationNum[g*2+1] - parseInt(finalStationNum[i+1])) * 2.5)
+                                                        }
+                                                        console.log(time[g*4+1] + ' ' + time[g*4+2] + ' '+ time[g*4+3]+ ' ' + time[g*4+1]+time[g*4+2]+time[g*4+3])
+                                                    }
+                                                    time[4] = 0;
+                                                    for (var r = 1; r <= 3; r++){
+                                                        time[0] += time[r];
+                                                        time[4] += time[r+4];
+                                                        console.log(time[0]+' '+time[4]);
+                                                    }
+                                                    if(time[0] > time[4]){
+                                                        transStationId[0] = transStationId[2];
+                                                        transStationId[1] = transStationId[3];
+                                                        transStationNum[0] = transStationNum[2];
+                                                        transStationNum[1] = transStationNum[3];
+                                                        transStationTime[0] = transStationTime[1];
+                                                        transStationName[0] = transStationName[1];
+                                                        time[0] = time[4];
+                                                        for(var d = 1;d <= 3;d++){
+                                                            time[d] = time[d+4];
+                                                        }
+                                                    }
+                                                    a = 0;
+                                                    if(time[1] > 0){
+                                                        msg = '◎ 於 '+ finalStationId[i] + ' ' + finalStationName[i] + ' 站上車\n |\n';
+                                                        for(var t=0;t<2;t++){
+                                                            if(finalStationId[i] == specialtranssta[t]){
+                                                                msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                time[0] += specialTime[t] + 1
+                                                            }
+                                                        }
+                                                        for(var u = 0; u < 9; u++){
+                                                            for(var v = 0; v < 5 ; v++){
+                                                                if(finalStationId[i] == specialtransstaXZ[u] && transStationId[0] == specialtransstaLZ[v]){
+                                                                    msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
+                                                                    msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                    msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                    msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                    time[1] = specialtransTime[v]
+                                                                    finalRouteName[i] = '蘆洲線'
+                                                                }else if (finalStationId[i] == specialtransstaLZ[v] & transStationId[0] == specialtransstaXZ[u]){
+                                                                    msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
+                                                                    msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                    msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                    msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3];
+                                                                    time[1] = specialtransTime[u];
+                                                                    finalRouteName[i] = '新莊線';
+                                                                }
+                                                            }
+                                                        }
+                                                        msg += '◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n'
+                                                        msg += '◎ 在 '+ transStationId[0] + ' ' + transStationName[0] + ' 站下車\n '
+                                                    }else{
+                                                        time[0] = time[3]
+                                                    }
+                                                    if(time[1]>0 && time[3]>0){
+                                                        msg += '|\n◎ 轉乘 '+ finalRouteName[i+1] + ' 路線\n   (預估轉乘時間 ' + time[2] + ' 分鐘)\n |\n'
+                                                    }
+                                                    if(time[3]>0){
+                                                        msg += '◎ 於 '+ transStationId[1] + ' ' + transStationName[0] + ' 站上車\n |\n'
+                                                        for(var u = 0; u < 9; u++){
+                                                            for(var v = 0; v < 5 ; v++){
+                                                                if(finalStationId[i+1] == specialtransstaXZ[u] && transStationId[1] == specialtransstaLZ[v]){
+                                                                    msg +='◎ 搭乘 蘆洲線 路線\n   (預估搭乘時間 ' + specialtransTime[v] + ' 分鐘)\n |\n';
+                                                                    msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                    msg +='◎ 轉乘 新莊線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                    msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                    time[3] = specialtransTime[u];
+                                                                    finalRouteName[i] = '新莊線' ;                                                                   
+                                                                }else if (finalStationId[i+1] == specialtransstaLZ[v] & transStationId[1] == specialtransstaXZ[u]){
+                                                                    msg +='◎ 搭乘 新莊線 路線\n   (預估搭乘時間 ' + specialtransTime[u] + ' 分鐘)\n |\n';
+                                                                    msg +='◎ 在 O12 大橋頭 站下車\n |\n';
+                                                                    msg +='◎ 轉乘 蘆洲線 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                    msg +='◎ 於 O12 大橋頭 站上車\n |\n';
+                                                                    time[0] = specialtransTime[u] + specialtransTime[v] + 1 + time[2] + time[3]
+                                                                    time[3] = specialtransTime[v];
+                                                                    finalRouteName[i] = '蘆洲線'          ;                                                          
+                                                                }
+                                                            }
+                                                        }
+                                                        msg += '◎ 搭乘 ' + finalRouteName[i+1] + ' 路線\n   (預估搭乘時間 ' + time[3] + ' 分鐘)\n |\n'
+                                                        for(var t=0;t<2;t++){
+                                                            if(finalStationId[i+1] == specialtranssta[t]){
+                                                                msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                time[0] += specialTime[t] + 1;
+                                                            }
+                                                        }
+                                                        msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
+                                                    }else{
+                                                        time[0] = time[1]
+                                                    }
+                                                    if(i != j){
+                                                        msg += ' |\n◎ 於捷運' + finalStationName[i+1] + '站' + finalExit[i+1] + '號出口出站\n |\n';
+                                                        msg += '◎ 前往 '+ finalfaName[i+1]+'\n';
+                                                    }
+                                                    msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
+                                                    agent.add(msg);
+                                                    rank = 0;
+                                                }else{
+                                                    for(var g = 0;g < 6 ;g++){
+                                                        var t = g * 2;
+                                                        var f = g * 4;
+                                                        var s = g * 6;
+                                                        var e = g * 8;
+                                                        for(var k = 0; k < tStaName.length; k++){
+                                                            if(finalStationLine[i] == tLine1[k] && mrtLine[0][g] == tLine2[k]){
+                                                                transStationId[e] = tSta1[k];
+                                                                transStationId[e+1] = tSta2[k];
+                                                                transStationNum[e] = tStaNum1[k];
+                                                                transStationNum[e+1] = tStaNum2[k];
+                                                                transStationTime[f] = transTime[k];
+                                                                transStationName[f] = tStaName[k];
+                                                                transStationRoute[t] = mrtLine[1][g];
+                                                                k = transSta;
+                                                            }
+                                                        }
+                                                        for(var k = 0; k < tStaName.length; k++){
+                                                            if(mrtLine[0][g] == tLine1[k] && finalStationLine[i+1] == tLine2[k]){
+                                                                transStationId[e+2] = tSta1[k];
+                                                                transStationId[e+3] = tSta2[k];
+                                                                transStationNum[e+2] = tStaNum1[k];
+                                                                transStationNum[e+3] = tStaNum2[k];
+                                                                transStationTime[f+1] = transTime[k];
+                                                                transStationName[f+1] = tStaName[k];
+                                                                k = transSta;
+                                                            }
+                                                        }
+                                                        for(var k = 1; k <= tStaName.length; k++){
+                                                            if(finalStationLine[i] == tLine1[tStaName.length-k] && mrtLine[0][g] == tLine2[tStaName.length-k]){
+                                                                transStationId[e+4] = tSta1[tStaName.length-k];
+                                                                transStationId[e+5] = tSta2[tStaName.length-k];
+                                                                transStationNum[e+4] = tStaNum1[tStaName.length-k];
+                                                                transStationNum[e+5] = tStaNum2[tStaName.length-k];
+                                                                transStationTime[f+2] = transTime[tStaName.length-k];
+                                                                transStationName[f+2] = tStaName[tStaName.length-k];
+                                                                transStationRoute[t+1] = mrtLine[1][g];
+                                                                k = transSta;
+                                                            }
+                                                        }
+                                                        for(var k = 1; k <= tStaName.length; k++){
+                                                            if(mrtLine[0][g] == tLine1[tStaName.length-k] && finalStationLine[i+1] == tLine2[tStaName.length-k]){
+                                                                transStationId[e+6] = tSta1[tStaName.length-k];
+                                                                transStationId[e+7] = tSta2[tStaName.length-k];
+                                                                transStationNum[e+6] = tStaNum1[tStaName.length-k];
+                                                                transStationNum[e+7] = tStaNum2[tStaName.length-k];
+                                                                transStationTime[f+3] = transTime[tStaName.length-k];
+                                                                transStationName[f+3] = tStaName[tStaName.length-k];
+                                                                k = transSta;
+                                                            }
+                                                        }
+                                                        for(var w = 0 ; w < 2;w++){
+                                                            var m = w * 2;
+                                                            var p = w * 4;
+                                                            var q = w * 6;
+                                                            for(var h = 0;h<=5;h++){
+                                                                time[s*2+q+h] = 0;
+                                                            }
+                                                            if(parseInt(finalStationNum[i]) < transStationNum[e+p]){
+                                                                time[s*2+q+1] = Math.round((transStationNum[e+p] - parseInt(finalStationNum[i])) * 2.5)
+                                                            }else{
+                                                                time[s*2+q+1] = Math.round((parseInt(finalStationNum[i]) - transStationNum[e+p]) * 2.5)
+                                                            }
+                                                            time[s*2+q+2] = transStationTime[f+m];
+                                                            if(transStationNum[e+p+1] < transStationNum[e+p+2]){
+                                                                time[s*2+q+3] = Math.round((transStationNum[e+p+2] - transStationNum[e+p+1]) * 2.5)
+                                                            }else{
+                                                                time[s*2+q+3] = Math.round((transStationNum[e+p+1] - transStationNum[e+p+2]) * 2.5)
+                                                            }
+                                                            time[s*2+q+4] = transStationTime[f+m+1];
+                                                            if(transStationNum[e+p+3] < parseInt(finalStationNum[i+1])){
+                                                                time[s*2+q+5] = Math.round((parseInt(finalStationNum[i+1]) - transStationNum[e+p+3]) * 2.5)
+                                                            }else{
+                                                                time[s*2+q+5] = Math.round((transStationNum[e+p+3] - parseInt(finalStationNum[i+1])) * 2.5)
+                                                            }
+                                                            for (var r = 1; r <= 5; r++){
+                                                                time[s*2+q+0] += time[s*2+q+r];
+                                                            }
+                                                        }
+                                                    }
+                                                    for(var g = 1;g < 12;g++){
+                                                        var p = g * 4;
+                                                        var q = g * 2;
+                                                        if(time[0] > time[g*6]){
+                                                            transStationId[0] = transStationId[p+0];
+                                                            transStationId[1] = transStationId[p+1];
+                                                            transStationId[2] = transStationId[p+0];
+                                                            transStationId[3] = transStationId[p+1];
+                                                            transStationNum[0] = transStationNum[p+0];
+                                                            transStationNum[1] = transStationNum[p+1];
+                                                            transStationNum[2] = transStationNum[p+2];
+                                                            transStationNum[3] = transStationNum[p+3];
+                                                            transStationTime[0] = transStationTime[q+0];
+                                                            transStationTime[1] = transStationTime[q+1];
+                                                            transStationName[0] = transStationName[q+0];
+                                                            transStationName[1] = transStationName[q+1];
+                                                            transStationRoute[0] = transStationRoute[g];
+                                                            for(var r = 0;r<6;r++){
+                                                                time[r] = time[g*6 + r];
+                                                            }
+                                                        }
+                                                    }
+                                                    a = 0;
+                                                    if(time[1] > 0){
+                                                        msg = '◎ 於 '+ finalStationId[i] + ' ' + finalStationName[i] + ' 站上車\n |\n'
+                                                        for(var t=0;t<2;t++){
+                                                            if(finalStationId[i] == specialtranssta[t]){
+                                                                msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                msg +='◎ 轉乘 ' + finalRouteName[i] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                time[0] += specialTime[t] + 1
+                                                            }
+                                                        }
+                                                        msg += '◎ 搭乘 ' + finalRouteName[i] + ' 路線\n   (預估搭乘時間 ' + time[1] + ' 分鐘)\n |\n'
+                                                        msg += '◎ 在 '+ transStationId[0] + ' ' + transStationName[0] + ' 站下車\n'
+                                                    }
+                                                    if(time[1] > 0 && time[3] > 0){
+                                                        msg += ' |\n◎ 轉乘 ' + transStationRoute[0] + ' 路線\n   (預估轉乘時間 ' + time[2] + ' 分鐘)\n |\n'
+                                                    }
+                                                    if(time[3]>0){
+                                                        msg += '◎ 於 '+ transStationId[1] + ' ' + transStationName[0] + ' 站上車\n |\n'
+                                                        msg += '◎ 搭乘 ' + transStationRoute[0] + ' 路線\n   (預估搭乘時間 ' + time[3] + ' 分鐘)\n |\n'
+                                                        msg += '◎ 在 ' + transStationId[2] + ' ' + transStationName[1] + ' 站下車\n'
+                                                    }
+                                                    if(time[3]>0 && time[5]>0){
+                                                        msg += '|\n◎ 轉乘 ' + finalRouteName[i+1] + ' 路線\n   (預估轉乘時間 ' + time[4] + ' 分鐘)\n |\n'
+                                                    }
+                                                    if(time[5]>0){
+                                                        msg += '◎ 於 '+ transStationId[3] + ' ' + transStationName[1] + ' 站上車\n |\n'
+                                                        msg += '◎ 搭乘 ' + finalRouteName[i+1] + ' 路線\n   (預估搭乘時間 ' + time[5] + ' 分鐘)\n |\n'
+                                                        for(var t=0;t<2;t++){
+                                                            if(finalStationId[i+1] == specialtranssta[t]){
+                                                                msg +='◎ 在 '+ specialtransfer[t] + ' 站下車\n |\n';
+                                                                msg +='◎ 轉乘 ' + specialtransRoute[t] + ' 路線\n   (預估轉乘時間 1 分鐘)\n |\n';
+                                                                msg +='◎ 於 '+ specialtransfer[t] + ' 站上車\n |\n';
+                                                                msg +='◎ 搭乘 ' + specialtransRoute[t] + ' 路線\n   (預估搭乘時間 ' + specialTime[t] + ' 分鐘)\n |\n';
+                                                                time[0] += specialTime[t] + 1
+                                                            }
+                                                        }
+                                                        msg += '◎ 在 '+ finalStationId[i+1] + ' ' + finalStationName[i+1] + ' 站下車\n'
+                                                    }
+                                                    if(i != j){
+                                                        msg += ' |\n◎ 於捷運' + finalStationName[i+1] + '站' + finalExit[i+1] + '號出口出站\n |\n';
+                                                        msg += '◎ 前往 '+ finalfaName[i+1]+'\n';
+                                                    }
+                                                    msg += '\n----------------------\n全程共計 ' + time[0] + ' 分鐘'
+                                                    agent.add(msg);
+                                                    rank = 0;
+                                                }
+                                            }  
+                                        }
+                                        rank = 0;
+                                        foodattractionsadd = 0;
+
+                                    }
+                                })
+                            }
+                        })
+                    }
+                })
+            }
+        })
+    }  
+
+    function deleteschedule(){
+        //取得分類
+        var sId = request.body.queryResult.parameters.sId;
+        //回覆文字
+        return schedule.deleteSchedule(sId).then(data => {
+            if (data == -9){
+                //回覆文字
+                agent.add('查詢失敗'); 
+            }else{ 
+                agent.add('刪除成功'); 
+            }
+        })
+    }  
+
+    function endprogram(){
+        //回覆文字
+        agent.add('感謝您的使用。');
+    }  
+
+
+    //-----------------------------
+    // 設定對話中各個意圖的函式對照
+    //-----------------------------
+    let intentMap = new Map();
+    
+    intentMap.set('Default Welcome Intent', welcome);                                //歡迎意圖
+    intentMap.set('member join', memberJoin);                                        //加入會員意圖
+    intentMap.set('fill member name', fillmemberName);                               //填入會員姓名意圖
+    intentMap.set('check station', checkstation);                                    //查看車站意圖 
+    intentMap.set('list a station category', listAStationCategory);                  //列出車站
+    intentMap.set('check food attractions', checkfoodattractions);                   //選擇美食或景點
+    intentMap.set('list a food attractions category', listAFoodAttractionsCategory); //查看美食景點菜單
+    intentMap.set('list food attractions details', listFoodAttractionsDetails);      //選擇菜單
+    intentMap.set('add food attractions', addfoodattractions);                       //加入美食景點菜單
+    intentMap.set('start schedule', startschedule);                                  //進行排程
+    intentMap.set('save schedule', saveschedule);                                    //儲存排程
+    intentMap.set('search saved schedule', searchsavedschedule);                     //查詢已存排程
+    intentMap.set('schedule detail', scheduledetail);                                //顯示行程詳細資訊
+    intentMap.set('delete schedule', deleteschedule);                                //刪除行程
+    intentMap.set('end program', endprogram);                                //刪除行程
+    
+    agent.handleRequest(intentMap);
+})
+
+
+//----------------------------------------
+// 監聽3000埠號, 
+// 或是監聽Heroku設定的埠號
+//----------------------------------------
+var server = app.listen(process.env.PORT || 3000, function() {
+    const port = server.address().port;
+    console.log("正在監聽埠號:", port);
+});
